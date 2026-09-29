@@ -81,7 +81,7 @@ export default function Dashboard() {
             </button>
           ))}
         </div>
-        <BreakdownBars rows={rows} />
+        <BreakdownBars rows={rows} withFlags={dim === 'country'} />
         <div className="mt-4">
           <LevelLegend />
         </div>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Avatar, btnPrimary, btnSecondary, inputCls } from '../components/ui'
+import { Avatar, CountryLabel, btnPrimary, btnSecondary, inputCls } from '../components/ui'
 import { api } from '../lib/api'
 import { useStore } from '../lib/store'
 import { matchesName } from './People'
@@ -61,7 +61,15 @@ export default function Claim() {
                   <div className="min-w-0">
                     <div className="font-semibold">{s.full_name}</div>
                     <div className="truncate text-xs text-gray-500">
-                      {s.user_id ? 'Already claimed' : [s.country_origin, s.college].filter(Boolean).join(' · ')}
+                      {s.user_id ? (
+                        'Already claimed'
+                      ) : (
+                        <>
+                          <CountryLabel country={s.country_origin} />
+                          {s.country_origin && s.college && ' · '}
+                          {s.college}
+                        </>
+                      )}
                     </div>
                   </div>
                 </button>

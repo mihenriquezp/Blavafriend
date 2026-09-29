@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "import": "tsx scripts/import-register.ts",
-    "scrape": "tsx scripts/scrape-bsg.ts"
+    "scrape": "tsx scripts/scrape-bsg.ts",
+    "flags": "tsx scripts/copy-flags.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

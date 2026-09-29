@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Avatar, Chip, LevelBadge, LevelPicker, StarButton, inputCls } from '../components/ui'
+import { Avatar, Chip, CountryLabel, LevelBadge, LevelPicker, StarButton, inputCls } from '../components/ui'
 import { CONTINENTS, FAMILY_OPTIONS, GENDER_OPTIONS, LEVELS, POLICY_INTERESTS, continentOf, type Level } from '../lib/options'
 import { useStore } from '../lib/store'
 import type { Student } from '../lib/types'
@@ -233,7 +233,15 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
                     {s.nickname && <span className="font-normal text-gray-500"> “{s.nickname}”</span>}
                   </div>
                   <div className="truncate text-xs text-gray-500">
-                    {[s.country_origin, s.college].filter(Boolean).join(' · ') || '—'}
+                    {s.country_origin || s.college ? (
+                      <>
+                        <CountryLabel country={s.country_origin} />
+                        {s.country_origin && s.college && ' · '}
+                        {s.college}
+                      </>
+                    ) : (
+                      '—'
+                    )}
                   </div>
                   <div className="truncate text-xs text-gray-400">{s.job_title}</div>
                 </div>
