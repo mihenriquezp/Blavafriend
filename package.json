@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "import": "tsx scripts/import-register.ts"
+    "import": "tsx scripts/import-register.ts",
+    "scrape": "tsx scripts/scrape-bsg.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

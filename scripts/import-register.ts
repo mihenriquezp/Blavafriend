@@ -4,12 +4,15 @@
  *
  *   npm run import -- path/to/register.xlsx
  *
+ * If private/bsg-names.json exists (from `npm run scrape`), rows are matched to
+ * the official names and everyone else in the cohort is added with just a name.
+ *
  * Writes (both git-ignored, because this repo is public):
  *   private/seed.sql     → paste into the Supabase SQL editor and run
  *   private/review.md    → rows and phrases that need a human look
  */
 import ExcelJS from 'exceljs'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { COLLEGES, COUNTRY_CONTINENT } from '../src/lib/options.ts'
 
 const COUNTRY_ALIASES: Record<string, string> = {
@@ -213,18 +216,52 @@ function realign(row: string[], who: string): string[] {
   return r
 }
 
+const nameTokens = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z\s-]/g, ' ')
+    .split(/[\s-]+/)
+    .filter(Boolean)
+
+/** Finds the official name for a spreadsheet name ("Lalit", "Yazmín Gutiérrez Vaca", "Ziv Ng "…). */
+function bestMatch(name: string, official: string[], used: Set<string>): string | null {
+  const a = nameTokens(name)
+  const scored = official
+    .filter((o) => !used.has(o))
+    .map((o) => {
+      const b = nameTokens(o)
+      const shared = a.filter((t) => b.includes(t)).length
+      const aInB = shared === a.length
+      const firstAndLast = a.length > 1 && b.includes(a[0]) && b.includes(a[a.length - 1])
+      const bInA = b.every((t) => a.includes(t))
+      const sameSurname = a.length > 1 && a[a.length - 1].length > 3 && b.includes(a[a.length - 1])
+      return { o, ok: aInB || firstAndLast || bInA || shared >= 2 || sameSurname, shared }
+    })
+    .filter((x) => x.ok)
+    .sort((x, y) => y.shared - x.shared)
+  if (!scored.length) return null
+  if (scored.length > 1 && scored[0].shared === scored[1].shared) {
+    review.push(`- **Ambiguous:** “${name}” could be ${scored.map((x) => `“${x.o}”`).join(' or ')}`)
+    return null
+  }
+  return scored[0].o
+}
+
 const sql = (v: string | number | null) =>
   v === null || v === '' ? 'null' : typeof v === 'number' ? String(v) : `'${String(v).replace(/'/g, "''")}'`
 const sqlArr = (xs: string[]) => (xs.length ? `array[${xs.map((x) => sql(x)).join(', ')}]::text[]` : `'{}'::text[]`)
 
 async function main() {
   const file = process.argv[2]
-  if (!file) throw new Error('Usage: npm run import -- path/to/register.xlsx')
+  if (!file) throw new Error('Usage: npm run import -- path/to/register.xlsx [private/bsg-names.json]')
+  const namesFile = process.argv[3] ?? 'private/bsg-names.json'
   const wb = new ExcelJS.Workbook()
   await wb.xlsx.readFile(file)
   const ws = wb.worksheets[0]
 
-  const values: string[] = []
+  const rows: { name: string; rest: string[] }[] = []
   ws.eachRow((row, n) => {
     if (n === 1) return
     const cells = Array.from({ length: 12 }, (_, i) => clean(row.getCell(i + 1).value))
@@ -245,9 +282,9 @@ async function main() {
     if (r[10] && !s.linkedin && !s.instagram && r[10].length > 3)
       review.push(`- ${name} — no social link recognised in “${r[10].slice(0, 80)}”`)
 
-    values.push(
-      `(${[
-        sql(name),
+    rows.push({
+      name,
+      rest: [
         sql(age),
         sql(residence),
         sql(origin),
@@ -258,9 +295,36 @@ async function main() {
         sqlArr(tags(r[9], HOBBY_RULES, name, 'hobby')),
         sql(s.linkedin),
         sql(s.instagram),
-      ].join(', ')})`,
-    )
+      ],
+    })
   })
+
+  // Merge with the official cohort list (npm run scrape): official names win,
+  // and everyone not in the spreadsheet is added with just their name.
+  const values: string[] = []
+  const official = existsSync(namesFile) ? (JSON.parse(readFileSync(namesFile, 'utf8')) as string[]) : null
+  if (official) {
+    const used = new Set<string>()
+    for (const row of rows) {
+      const match = bestMatch(row.name, official, used)
+      if (match) {
+        used.add(match)
+        if (match !== row.name) review.push(`- Matched “${row.name}” → official name “${match}”`)
+      } else {
+        // Not in the official 2026 list (e.g. deferred): leave out; the admin can add them back.
+        review.push(`- **Not in BSG MPP 2026 list, left out:** “${row.name}”`)
+        continue
+      }
+      values.push(`(${[sql(match), ...row.rest].join(', ')})`)
+    }
+    const empty = rows[0]?.rest.map(() => 'null') ?? []
+    for (const name of official.filter((n) => !used.has(n))) {
+      values.push(`(${[sql(name), ...empty.slice(0, 6), `'{}'::text[]`, `'{}'::text[]`, 'null', 'null'].join(', ')})`)
+    }
+    console.log(`Merged with ${official.length} official names: ${used.size} matched, ${official.length - used.size} name-only`)
+  } else {
+    for (const row of rows) values.push(`(${[sql(row.name), ...row.rest].join(', ')})`)
+  }
 
   mkdirSync('private', { recursive: true })
   writeFileSync(

@@ -34,11 +34,12 @@ Sin variables de Supabase, la app corre con 40 compañeros ficticios guardados e
    - **Gmail** con una *App Password* (`smtp.gmail.com`, puerto 465).
    Luego, en **Authentication → Rate Limits**, sube "emails per hour" a ~100.
 
-### 2. Cargar a los compañeros del Excel
+### 2. Cargar a los compañeros
 ```bash
+npm run scrape    # nombres oficiales del directorio BSG (Rol: MPP, Año: 2026) → private/bsg-names.json
 npm run import -- ruta/al/BSG_MPP_26_27_Informal_Register.xlsx
 ```
-Esto genera `private/seed.sql` y `private/review.md`. La carpeta `private/` está en `.gitignore`: **este repo es público, así que nunca subas datos reales**. Pega `seed.sql` en el SQL Editor y ejecútalo. Puedes volver a correrlo con un Excel actualizado: no duplica nombres que ya existen. `review.md` lista lo que no se pudo mapear automáticamente.
+El importador cruza el Excel con la lista oficial: quienes están en el Excel conservan sus datos con su nombre oficial, el resto del curso entra solo con el nombre y quienes no están en la lista oficial quedan fuera. Genera `private/seed.sql` y `private/review.md`. La carpeta `private/` está en `.gitignore`: **este repo es público, así que nunca subas datos reales**. Pega `seed.sql` en el SQL Editor y ejecútalo. Puedes volver a correrlo con un Excel actualizado: no duplica nombres que ya existen. `review.md` lista lo que no se pudo mapear automáticamente.
 
 ### 3. Vercel
 1. Entra a vercel.com con GitHub → **Add New Project** → importa este repo.
@@ -57,7 +58,8 @@ Listo: comparte el link con el curso.
 ## Estructura
 ```
 supabase/schema.sql        tablas, reglas de privacidad (RLS), triggers, bucket de fotos
-scripts/import-register.ts limpia el Excel y genera SQL
+scripts/scrape-bsg.ts      obtiene los nombres del curso desde el directorio de BSG
+scripts/import-register.ts limpia el Excel, lo cruza con esos nombres y genera SQL
 src/lib/                   opciones, API (Supabase y demo), estado, estadísticas
 src/pages/                 Login, "¿Quién eres?", Stats, People, Persona, Perfil, Admin, Privacidad
 ```
