@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { Onboarding, hasSeenOnboarding } from './components/Intro'
 import { Layout } from './components/Layout'
 import { Spinner } from './components/ui'
@@ -41,9 +41,20 @@ function Gate() {
         <Route path="me" element={<MyProfile />} />
         <Route path="admin" element={<Admin />} />
         <Route path="about" element={<About />} />
+        <Route path="welcome" element={<ReplayTour />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+  )
+}
+
+function ReplayTour() {
+  const { user } = useStore()
+  const navigate = useNavigate()
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <Onboarding userId={user!.id} onDone={() => navigate('/')} />
+    </div>
   )
 }
 

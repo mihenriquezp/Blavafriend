@@ -1,5 +1,6 @@
+import { Link } from 'react-router-dom'
 import { HowItWorks } from '../components/Intro'
-import { Card } from '../components/ui'
+import { Card, btnSecondary } from '../components/ui'
 import { LEVELS } from '../lib/options'
 
 export default function About() {
@@ -9,6 +10,9 @@ export default function About() {
       <Card>
         <h2 className="mb-3 font-semibold text-oxford-900">How it works</h2>
         <HowItWorks />
+        <Link to="/welcome" className={`${btnSecondary} mt-4 w-full`}>
+          ▶ Replay the welcome tour
+        </Link>
       </Card>
       <Card className="space-y-3 text-sm leading-relaxed text-gray-700">
         <p>
