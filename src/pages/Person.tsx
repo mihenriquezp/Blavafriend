@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Avatar, Card, Chip, LevelPicker, StarButton, btnPrimary } from '../components/ui'
-import { FAMILY_OPTIONS, LEVELS, continentOf, type Level } from '../lib/options'
+import { FAMILY_OPTIONS, GENDER_OPTIONS, LEVELS, continentOf, type Level } from '../lib/options'
+import { callName } from '../lib/names'
 import { socialLinks } from '../lib/social'
 import { useStore } from '../lib/store'
 
@@ -12,7 +13,7 @@ export default function Person() {
   const s = students.find((x) => x.id === id)
   const rel = id ? relationships.get(id) : undefined
   const [note, setNote] = useState(rel?.note ?? '')
-  const [saved, setSaved] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [saved, setSaved] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const timer = useRef<number | undefined>(undefined)
   const pendingNote = useRef<string | null>(null)
 
@@ -29,21 +30,22 @@ export default function Person() {
   const level = (rel?.level ?? 0) as Level
   const history = events.filter((e) => e.student_id === s.id).sort((a, b) => b.created_at.localeCompare(a.created_at))
   const family = FAMILY_OPTIONS.find((f) => f.value === s.family_status)?.label
+  const gender = s.gender && s.gender !== 'prefer_not_say' ? GENDER_OPTIONS.find((g) => g.value === s.gender)?.label : null
   const links = socialLinks(s)
 
   // Every change is saved straight away; this just tracks it so we can say so.
-  const track = async (save: () => Promise<void>) => {
+  const track = async (save: () => Promise<boolean | void>) => {
     setSaved('saving')
-    await save()
-    setSaved(pendingNote.current === null ? 'saved' : 'saving')
+    const ok = await save()
+    setSaved(ok === false ? 'error' : pendingNote.current === null ? 'saved' : 'saving')
   }
 
   const flushNote = async () => {
     window.clearTimeout(timer.current)
     const value = pendingNote.current
-    if (value === null) return
+    if (value === null) return true
     pendingNote.current = null
-    await setRelationship(s.id, { note: value || null })
+    return setRelationship(s.id, { note: value || null })
   }
 
   const saveNote = (value: string) => {
@@ -71,7 +73,10 @@ export default function Person() {
           <Avatar name={s.full_name} url={s.photo_url} size={88} />
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
-              <h1 className="font-display text-2xl font-bold text-oxford-900">{s.full_name}</h1>
+              <div>
+                <h1 className="font-display text-2xl font-bold text-oxford-900">{s.full_name}</h1>
+                {s.nickname && <p className="text-sm text-gray-500">Goes by “{s.nickname}”</p>}
+              </div>
               <StarButton
                 starred={!!rel?.starred}
                 onToggle={() => track(() => setRelationship(s.id, { starred: !rel?.starred }))}
@@ -91,12 +96,14 @@ export default function Person() {
           <Info label="Lives in" value={s.country_residence} />
           <Info label="Coming" value={family} />
           <Info label="Speaks" value={s.languages.join(', ')} />
+          <Info label="Gender" value={gender} />
         </dl>
 
         {s.policy_interests.length > 0 && (
           <TagRow label="Policy interests" tags={s.policy_interests} param="policy" />
         )}
         {s.hobbies.length > 0 && <TagRow label="Hobbies" tags={s.hobbies} param="hobby" />}
+        {s.undergrad_fields.length > 0 && <TagRow label="Undergraduate degree" tags={s.undergrad_fields} param="degree" />}
 
         {links.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
@@ -117,7 +124,7 @@ export default function Person() {
       </Card>
 
       <Card>
-        <h2 className="mb-1 font-semibold text-oxford-900">How well do you know {s.full_name.split(' ')[0]}?</h2>
+        <h2 className="mb-1 font-semibold text-oxford-900">How well do you know {callName(s)}?</h2>
         <p className="mb-3 text-xs text-gray-500">🔒 Only you can see this.</p>
         <LevelPicker value={level} onChange={(l) => track(() => setRelationship(s.id, { level: l }))} />
         <p className="mt-2 text-center text-sm font-medium text-oxford-700">{LEVELS[level].label}</p>
@@ -161,6 +168,8 @@ export default function Person() {
             <span className="text-gray-500">Saving…</span>
           ) : saved === 'saved' ? (
             <span className="font-medium text-green-700">✓ Saved</span>
+          ) : saved === 'error' ? (
+            <span className="font-medium text-red-700">Not saved, please try again</span>
           ) : (
             <span className="text-gray-500">Changes save automatically</span>
           )}

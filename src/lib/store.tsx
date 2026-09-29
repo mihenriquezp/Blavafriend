@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api } from './api'
-import { HOBBIES, LANGUAGES } from './options'
+import { callName } from './names'
+import { HOBBIES, LANGUAGES, UNDERGRAD_FIELDS } from './options'
 import type {
   CustomTag,
   Relationship,
@@ -24,10 +25,12 @@ interface Store {
   events: RelationshipEvent[]
   hobbyOptions: string[]
   languageOptions: string[]
+  degreeOptions: string[]
   /** Short-lived message shown as a toast. */
   notice: string | null
   reload(): Promise<void>
-  setRelationship(studentId: string, patch: RelationshipPatch): Promise<void>
+  /** Saves right away (optimistically); resolves false if the server rejected it. */
+  setRelationship(studentId: string, patch: RelationshipPatch): Promise<boolean>
   updateStudent(id: string, patch: StudentPatch): Promise<void>
   claim(studentId: string): Promise<void>
   createMine(fullName: string): Promise<void>
@@ -49,6 +52,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [events, setEvents] = useState<RelationshipEvent[]>([])
   const [tags, setTags] = useState<CustomTag[]>([])
   const [notice, setNotice] = useState<string | null>(null)
+  const latestSave = useRef(new Map<string, number>())
 
   useEffect(() => {
     if (!notice) return
@@ -106,7 +110,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // Meeting someone you starred takes them off your "want to meet" list.
       if (patch.level !== undefined && patch.level > (prev?.level ?? 0) && prev?.starred && patch.starred === undefined) {
         patch = { ...patch, starred: false }
-        const name = students.find((s) => s.id === studentId)?.full_name.split(' ')[0]
+        const person = students.find((s) => s.id === studentId)
+        const name = person && callName(person)
         setNotice(`${name ?? 'They'} came off your “want to meet” list ★`)
       }
       const optimistic: Relationship = {
@@ -131,13 +136,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           },
         ])
       }
+      // Only the latest change for a person counts: an older reply arriving late
+      // (e.g. after a quick double tap on the star) must not undo a newer one.
+      const seq = (latestSave.current.get(studentId) ?? 0) + 1
+      latestSave.current.set(studentId, seq)
       try {
         const saved = await api.upsertRelationship(studentId, patch)
+        if (latestSave.current.get(studentId) !== seq) return true
         setRels((rs) => [...rs.filter((r) => r.student_id !== studentId), saved])
       } catch (err) {
+        if (latestSave.current.get(studentId) !== seq) return true
         setRels((rs) => [...rs.filter((r) => r.student_id !== studentId), ...(prev ? [prev] : [])])
-        setError(err instanceof Error ? err.message : String(err))
+        const message = err instanceof Error ? err.message : String(err)
+        setNotice(`Couldn’t save that change: ${message}`)
+        return false
       }
+      return true
     },
     [rels, students],
   )
@@ -170,6 +184,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     () => mergeOptions(LANGUAGES, tags, 'language', students, (s) => s.languages),
     [tags, students],
   )
+  const degreeOptions = useMemo(
+    () => mergeOptions(UNDERGRAD_FIELDS, tags, 'degree', students, (s) => s.undergrad_fields),
+    [tags, students],
+  )
 
   const value: Store = {
     user,
@@ -184,6 +202,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     events,
     hobbyOptions,
     languageOptions,
+    degreeOptions,
     notice,
     reload,
     setRelationship,

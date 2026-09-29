@@ -1,9 +1,9 @@
 // A fully local backend used when Supabase isn't configured. Data is fictional
 // and lives in this browser's localStorage, so anyone can try the app safely.
-import { COLLEGES, COUNTRIES, HOBBIES, LANGUAGES, POLICY_INTERESTS, type Level } from './options'
+import { COLLEGES, COUNTRIES, GENDER_OPTIONS, HOBBIES, LANGUAGES, POLICY_INTERESTS, UNDERGRAD_FIELDS, type Level } from './options'
 import type { Api, CustomTag, Relationship, RelationshipEvent, SessionUser, Student } from './types'
 
-const KEY = 'blavafriend-demo-v1'
+const KEY = 'blavafriend-demo-v2'
 const DEMO_USER: SessionUser = { id: 'demo-user', email: 'demo1234@ox.ac.uk' }
 
 interface DemoState {
@@ -68,6 +68,9 @@ function seed(): DemoState {
       instagram: r() < 0.5 ? 'example' : null,
       x_handle: null,
       whatsapp: null,
+      nickname: r() < 0.3 ? first.slice(0, 3) : null,
+      gender: r() < 0.9 ? pick(GENDER_OPTIONS.slice(0, 3)).value : null,
+      undergrad_fields: some(UNDERGRAD_FIELDS, 1, 2),
       user_id: null,
       updated_at: new Date().toISOString(),
     }
@@ -102,7 +105,8 @@ function blankStudent(full_name: string, user_id: string | null): Student {
     id: `demo-${crypto.randomUUID()}`, full_name, user_id, age: null, country_origin: null,
     country_residence: null, job_title: null, college: null, family_status: null,
     policy_interests: [], hobbies: [], languages: [], bio: null, photo_url: null, linkedin: null,
-    instagram: null, x_handle: null, whatsapp: null, updated_at: new Date().toISOString(),
+    instagram: null, x_handle: null, whatsapp: null, nickname: null, gender: null, undergrad_fields: [],
+    updated_at: new Date().toISOString(),
   }
 }
 

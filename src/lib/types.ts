@@ -1,4 +1,4 @@
-import type { FamilyStatus, Level } from './options'
+import type { FamilyStatus, Gender, Level } from './options'
 
 export interface Student {
   id: string
@@ -18,6 +18,9 @@ export interface Student {
   instagram: string | null
   x_handle: string | null
   whatsapp: string | null
+  nickname: string | null
+  gender: Gender | null
+  undergrad_fields: string[]
   user_id: string | null
   updated_at: string
 }
@@ -43,7 +46,7 @@ export interface RelationshipEvent {
 }
 
 export interface CustomTag {
-  kind: 'hobby' | 'language'
+  kind: 'hobby' | 'language' | 'degree'
   label: string
 }
 

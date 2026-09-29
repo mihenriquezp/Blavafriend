@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Avatar, Chip, LevelBadge, LevelPicker, StarButton, inputCls } from '../components/ui'
-import { CONTINENTS, FAMILY_OPTIONS, LEVELS, POLICY_INTERESTS, continentOf, type Level } from '../lib/options'
+import { CONTINENTS, FAMILY_OPTIONS, GENDER_OPTIONS, LEVELS, POLICY_INTERESTS, continentOf, type Level } from '../lib/options'
 import { useStore } from '../lib/store'
 import type { Student } from '../lib/types'
 
@@ -12,7 +12,7 @@ const fold = (s: string) =>
     .toLowerCase()
 
 export function matchesName(s: Student, q: string) {
-  const n = fold(s.full_name)
+  const n = fold(`${s.full_name} ${s.nickname ?? ''}`)
   return fold(q)
     .split(/\s+/)
     .filter(Boolean)
@@ -21,7 +21,18 @@ export function matchesName(s: Student, q: string) {
 
 function matchesText(s: Student, q: string) {
   const hay = fold(
-    [s.full_name, s.job_title, s.bio, s.country_origin, s.country_residence, s.college, ...s.hobbies, ...s.policy_interests]
+    [
+      s.full_name,
+      s.nickname,
+      s.job_title,
+      s.bio,
+      s.country_origin,
+      s.country_residence,
+      s.college,
+      ...s.hobbies,
+      ...s.policy_interests,
+      ...s.undergrad_fields,
+    ]
       .filter(Boolean)
       .join(' '),
   )
@@ -33,11 +44,11 @@ function matchesText(s: Student, q: string) {
 
 type Sort = 'name' | 'level-asc' | 'level-desc' | 'recent'
 
-const MULTI_KEYS = ['policy', 'hobby', 'lang', 'level'] as const
-const SINGLE_KEYS = ['country', 'residence', 'continent', 'college', 'family'] as const
+const MULTI_KEYS = ['policy', 'hobby', 'lang', 'degree', 'level'] as const
+const SINGLE_KEYS = ['country', 'residence', 'continent', 'college', 'family', 'gender'] as const
 
 export default function People({ wishlist = false }: { wishlist?: boolean }) {
-  const { classmates, relationships, setRelationship, hobbyOptions, languageOptions } = useStore()
+  const { classmates, relationships, setRelationship, hobbyOptions, languageOptions, degreeOptions } = useStore()
   const [params, setParams] = useSearchParams()
   const [showFilters, setShowFilters] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
@@ -79,6 +90,7 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
     const policies = multi('policy')
     const hobbies = multi('hobby')
     const langs = multi('lang')
+    const degrees = multi('degree')
     const levels = multi('level').map(Number)
     const list = classmates.filter((s) => {
       if (q && !matchesText(s, q)) return false
@@ -88,6 +100,8 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
       if (single('continent') && continentOf(s.country_origin) !== single('continent')) return false
       if (single('college') && s.college !== single('college')) return false
       if (single('family') && s.family_status !== single('family')) return false
+      if (single('gender') && s.gender !== single('gender')) return false
+      if (degrees.length && !degrees.some((d) => s.undergrad_fields.includes(d))) return false
       if (policies.length && !policies.some((p) => s.policy_interests.includes(p))) return false
       if (hobbies.length && !hobbies.some((h) => s.hobbies.includes(h))) return false
       if (langs.length && !langs.some((l) => s.languages.includes(l))) return false
@@ -166,6 +180,13 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
               labels={Object.fromEntries(FAMILY_OPTIONS.map((f) => [f.value, f.label]))}
               onChange={(v) => setSingle('family', v)}
             />
+            <Select
+              label="Gender"
+              value={single('gender')}
+              options={GENDER_OPTIONS.map((g) => g.value)}
+              labels={Object.fromEntries(GENDER_OPTIONS.map((g) => [g.value, g.label]))}
+              onChange={(v) => setSingle('gender', v)}
+            />
           </div>
           <ChipFilter
             label="How well you know them"
@@ -177,6 +198,7 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
           <ChipFilter label="Policy interests (any)" options={[...POLICY_INTERESTS]} value={multi('policy')} onToggle={(v) => toggleMulti('policy', v)} collapsible />
           <ChipFilter label="Hobbies (any)" options={hobbyOptions} value={multi('hobby')} onToggle={(v) => toggleMulti('hobby', v)} collapsible />
           <ChipFilter label="Languages (any)" options={languageOptions} value={multi('lang')} onToggle={(v) => toggleMulti('lang', v)} collapsible />
+          <ChipFilter label="Undergraduate degree (any)" options={degreeOptions} value={multi('degree')} onToggle={(v) => toggleMulti('degree', v)} collapsible />
           {!wishlist && (
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={starredOnly} onChange={(e) => setSingle('starred', e.target.checked ? '1' : '')} />
@@ -206,7 +228,10 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
                 <Link to={`/people/${s.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                 <Avatar name={s.full_name} url={s.photo_url} size={52} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-semibold text-oxford-900">{s.full_name}</div>
+                  <div className="truncate font-semibold text-oxford-900">
+                    {s.full_name}
+                    {s.nickname && <span className="font-normal text-gray-500"> “{s.nickname}”</span>}
+                  </div>
                   <div className="truncate text-xs text-gray-500">
                     {[s.country_origin, s.college].filter(Boolean).join(' · ') || '—'}
                   </div>

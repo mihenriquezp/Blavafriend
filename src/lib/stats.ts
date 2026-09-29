@@ -1,7 +1,7 @@
-import { continentOf, type Level } from './options'
+import { GENDER_OPTIONS, continentOf, type Level } from './options'
 import type { Relationship, RelationshipEvent, Student } from './types'
 
-export type Dimension = 'continent' | 'country' | 'college' | 'policy' | 'language' | 'hobby'
+export type Dimension = 'continent' | 'country' | 'college' | 'policy' | 'language' | 'hobby' | 'degree' | 'gender'
 
 export const DIMENSIONS: { value: Dimension; label: string }[] = [
   { value: 'continent', label: 'Continent' },
@@ -10,6 +10,8 @@ export const DIMENSIONS: { value: Dimension; label: string }[] = [
   { value: 'policy', label: 'Policy interest' },
   { value: 'language', label: 'Language' },
   { value: 'hobby', label: 'Hobby' },
+  { value: 'degree', label: 'Undergrad' },
+  { value: 'gender', label: 'Gender' },
 ]
 
 export function groupsOf(s: Student, dim: Dimension): string[] {
@@ -26,6 +28,10 @@ export function groupsOf(s: Student, dim: Dimension): string[] {
       return s.languages.length ? s.languages : ['Not specified']
     case 'hobby':
       return s.hobbies.length ? s.hobbies : ['Not specified']
+    case 'degree':
+      return s.undergrad_fields.length ? s.undergrad_fields : ['Not specified']
+    case 'gender':
+      return [GENDER_OPTIONS.find((g) => g.value === s.gender)?.label ?? 'Not specified']
   }
 }
 
