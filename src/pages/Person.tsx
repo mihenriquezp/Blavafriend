@@ -12,7 +12,7 @@ export default function Person() {
   const s = students.find((x) => x.id === id)
   const rel = id ? relationships.get(id) : undefined
   const [note, setNote] = useState(rel?.note ?? '')
-  const [saved, setSaved] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [saved, setSaved] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const timer = useRef<number | undefined>(undefined)
   const pendingNote = useRef<string | null>(null)
 
@@ -32,18 +32,18 @@ export default function Person() {
   const links = socialLinks(s)
 
   // Every change is saved straight away; this just tracks it so we can say so.
-  const track = async (save: () => Promise<void>) => {
+  const track = async (save: () => Promise<boolean | void>) => {
     setSaved('saving')
-    await save()
-    setSaved(pendingNote.current === null ? 'saved' : 'saving')
+    const ok = await save()
+    setSaved(ok === false ? 'error' : pendingNote.current === null ? 'saved' : 'saving')
   }
 
   const flushNote = async () => {
     window.clearTimeout(timer.current)
     const value = pendingNote.current
-    if (value === null) return
+    if (value === null) return true
     pendingNote.current = null
-    await setRelationship(s.id, { note: value || null })
+    return setRelationship(s.id, { note: value || null })
   }
 
   const saveNote = (value: string) => {
@@ -161,6 +161,8 @@ export default function Person() {
             <span className="text-gray-500">Saving…</span>
           ) : saved === 'saved' ? (
             <span className="font-medium text-green-700">✓ Saved</span>
+          ) : saved === 'error' ? (
+            <span className="font-medium text-red-700">Not saved, please try again</span>
           ) : (
             <span className="text-gray-500">Changes save automatically</span>
           )}
