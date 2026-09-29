@@ -1,0 +1,35 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-oxford-50: #eef3f9;
+  --color-oxford-100: #d9e4f1;
+  --color-oxford-200: #b3c8e2;
+  --color-oxford-300: #7f9fc7;
+  --color-oxford-500: #2f5d91;
+  --color-oxford-700: #0f3664;
+  --color-oxford-900: #002147;
+  --color-gold: #c9a227;
+
+  /* Relationship levels: one-hue ordinal ramp (level 0 is neutral gray). */
+  --color-lvl-0: #d6d5d0;
+  --color-lvl-1: #86b6ef;
+  --color-lvl-2: #3987e5;
+  --color-lvl-3: #1c5cab;
+  --color-lvl-4: #0d366b;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+}
+
+html,
+body {
+  background: #f7f8fb;
+  color: #14213d;
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+select,
+textarea {
+  font-size: 16px; /* prevents iOS zoom on focus */
+}
