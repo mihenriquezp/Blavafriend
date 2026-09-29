@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Avatar, Card, Chip, LevelPicker, StarButton } from '../components/ui'
+import { Avatar, Card, Chip, LevelPicker, StarButton, btnPrimary } from '../components/ui'
 import { FAMILY_OPTIONS, LEVELS, continentOf, type Level } from '../lib/options'
 import { socialLinks } from '../lib/social'
 import { useStore } from '../lib/store'
@@ -14,6 +14,7 @@ export default function Person() {
   const [note, setNote] = useState(rel?.note ?? '')
   const [saved, setSaved] = useState<'idle' | 'saving' | 'saved'>('idle')
   const timer = useRef<number | undefined>(undefined)
+  const pendingNote = useRef<string | null>(null)
 
   useEffect(() => setNote(rel?.note ?? ''), [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -30,14 +31,33 @@ export default function Person() {
   const family = FAMILY_OPTIONS.find((f) => f.value === s.family_status)?.label
   const links = socialLinks(s)
 
+  // Every change is saved straight away; this just tracks it so we can say so.
+  const track = async (save: () => Promise<void>) => {
+    setSaved('saving')
+    await save()
+    setSaved(pendingNote.current === null ? 'saved' : 'saving')
+  }
+
+  const flushNote = async () => {
+    window.clearTimeout(timer.current)
+    const value = pendingNote.current
+    if (value === null) return
+    pendingNote.current = null
+    await setRelationship(s.id, { note: value || null })
+  }
+
   const saveNote = (value: string) => {
     setNote(value)
     setSaved('saving')
+    pendingNote.current = value
     window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(async () => {
-      await setRelationship(s.id, { note: value || null })
-      setSaved('saved')
-    }, 700)
+    timer.current = window.setTimeout(() => track(flushNote), 700)
+  }
+
+  const done = async () => {
+    await track(flushNote)
+    if (window.history.length > 1) navigate(-1)
+    else navigate('/people')
   }
 
   return (
@@ -52,7 +72,10 @@ export default function Person() {
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <h1 className="font-display text-2xl font-bold text-oxford-900">{s.full_name}</h1>
-              <StarButton starred={!!rel?.starred} onToggle={() => setRelationship(s.id, { starred: !rel?.starred })} />
+              <StarButton
+                starred={!!rel?.starred}
+                onToggle={() => track(() => setRelationship(s.id, { starred: !rel?.starred }))}
+              />
             </div>
             {s.job_title && <p className="text-gray-700">{s.job_title}</p>}
             <p className="mt-1 text-sm text-gray-500">
@@ -96,15 +119,12 @@ export default function Person() {
       <Card>
         <h2 className="mb-1 font-semibold text-oxford-900">How well do you know {s.full_name.split(' ')[0]}?</h2>
         <p className="mb-3 text-xs text-gray-500">🔒 Only you can see this.</p>
-        <LevelPicker value={level} onChange={(l) => setRelationship(s.id, { level: l })} />
+        <LevelPicker value={level} onChange={(l) => track(() => setRelationship(s.id, { level: l }))} />
         <p className="mt-2 text-center text-sm font-medium text-oxford-700">{LEVELS[level].label}</p>
 
         <label className="mt-5 block">
           <span className="mb-1 flex items-center justify-between text-sm font-semibold text-oxford-900">
             Private notes
-            <span className="text-xs font-normal text-gray-400">
-              {saved === 'saving' ? 'Saving…' : saved === 'saved' ? 'Saved' : ''}
-            </span>
           </span>
           <textarea
             value={note}
@@ -134,6 +154,21 @@ export default function Person() {
           </div>
         )}
       </Card>
+
+      <div className="sticky bottom-20 z-10 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:bottom-4">
+        <span className="flex-1 text-sm" role="status" aria-live="polite">
+          {saved === 'saving' ? (
+            <span className="text-gray-500">Saving…</span>
+          ) : saved === 'saved' ? (
+            <span className="font-medium text-green-700">✓ Saved</span>
+          ) : (
+            <span className="text-gray-500">Changes save automatically</span>
+          )}
+        </span>
+        <button className={btnPrimary} onClick={done}>
+          Done
+        </button>
+      </div>
     </div>
   )
 }

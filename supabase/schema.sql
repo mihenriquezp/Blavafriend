@@ -117,7 +117,10 @@ returns trigger
 language plpgsql security definer set search_path = public
 as $$
 begin
+  -- Only guards requests from app users; the dashboard (and deleting a user,
+  -- which unlinks their profile) runs without an app login and must pass.
   if new.user_id is distinct from old.user_id
+     and auth.uid() is not null
      and not public.is_admin()
      and current_setting('blavafriend.claiming', true) is distinct from 'on' then
     raise exception 'Only an admin can change profile ownership';
