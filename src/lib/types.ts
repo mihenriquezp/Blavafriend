@@ -50,6 +50,22 @@ export interface CustomTag {
   label: string
 }
 
+/** Anonymous, cohort-wide aggregates (see public.cohort_overview). */
+export interface CohortData {
+  students: number
+  claimed: number
+  /** People who have marked at least one classmate. */
+  trackers: number
+  pairs: { met: number; great: number; friends: number }
+  /** The caller's node in `edges`, if they have a profile. */
+  me: number | null
+  /** [node, node, level] — nodes are anonymous and reshuffled on every load. */
+  edges: [number, number, number][]
+  weekly: { week: string; met: number; great: number }[]
+  groups: { name: string; size: number }[]
+  mixing: { a: string; b: string; met: number; total: number }[]
+}
+
 export interface SessionUser {
   id: string
   email: string
@@ -74,6 +90,8 @@ export interface Api {
   listRelationships(): Promise<Relationship[]>
   upsertRelationship(studentId: string, patch: RelationshipPatch): Promise<Relationship>
   listEvents(): Promise<RelationshipEvent[]>
+
+  getCohort(): Promise<CohortData>
 
   listCustomTags(): Promise<CustomTag[]>
   addCustomTag(tag: CustomTag): Promise<void>

@@ -94,6 +94,13 @@ export function Privacy() {
         </ul>
         <p className="mt-1.5 text-xs text-green-900/80">Nobody is ever told how you rated them or that you starred them.</p>
       </div>
+      <div className="rounded-xl border border-oxford-100 bg-oxford-50 p-3">
+        <div className="mb-1 font-semibold text-oxford-900">🌐 Counted anonymously in “Cohort”</div>
+        <p className="text-sm">
+          Your levels also feed the cohort-wide view: totals, an unnamed network of dots and how much continents mix.
+          It never shows names, who rated whom, or anyone’s individual levels, and groups smaller than 5 are hidden.
+        </p>
+      </div>
       <p className="text-xs text-gray-500">
         Profiles were pre-filled from the public BSG directory (names) and the cohort’s informal register so people are
         easy to find. Ask the admin to change or delete your data at any time. A student project, not an official

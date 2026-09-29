@@ -4,10 +4,11 @@ import { useStore } from '../lib/store'
 import { Avatar } from './ui'
 
 const NAV = [
-  { to: '/', label: 'Stats', icon: '📊', end: true },
-  { to: '/people', label: 'People', icon: '👥' },
-  { to: '/wishlist', label: 'Want to meet', icon: '★' },
-  { to: '/me', label: 'Profile', icon: '🙂' },
+  { to: '/', label: 'Stats', short: 'Stats', icon: '📊', end: true },
+  { to: '/people', label: 'People', short: 'People', icon: '👥' },
+  { to: '/wishlist', label: 'Want to meet', short: 'To meet', icon: '★' },
+  { to: '/cohort', label: 'Cohort', short: 'Cohort', icon: '🌐' },
+  { to: '/me', label: 'Profile', short: 'Profile', icon: '🙂' },
 ]
 
 export function Layout() {
@@ -86,7 +87,7 @@ export function Layout() {
       )}
 
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {NAV.map((n) => (
             <NavLink
               key={n.to}
@@ -101,7 +102,7 @@ export function Layout() {
               <span className="text-lg leading-none" aria-hidden>
                 {n.icon}
               </span>
-              {n.label}
+              {n.short}
             </NavLink>
           ))}
         </div>
