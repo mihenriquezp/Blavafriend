@@ -326,3 +326,121 @@ create policy "owner or admin deletes photo" on storage.objects
       )
     )
   );
+
+-------------------------------------------------------------------------------
+-- Cohort view (anonymous aggregates only)
+-------------------------------------------------------------------------------
+-- Everyone's levels feed a cohort-wide picture, without exposing who rated whom:
+--   * only totals, weekly totals, an unnamed network and group-level mixing;
+--   * node numbers are shuffled on every call, so nodes can't be tracked over time;
+--   * the caller's own node only shows ties the caller created, so nobody can
+--     learn that someone else rated them;
+--   * groups (continents) with fewer than 5 people are left out of the mixing.
+-- A pair "has met" if either person rated the other >= 1; its level is the higher
+-- of the two ratings.
+create or replace function public.cohort_overview(p_continents jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql volatile security definer set search_path = public
+as $$
+declare
+  me uuid;
+  result jsonb;
+begin
+  if not public.is_member() then
+    raise exception 'Not allowed';
+  end if;
+  select id into me from public.students where user_id = auth.uid();
+
+  with
+  people as (
+    select s.id,
+           (row_number() over (order by random()) - 1)::int as node,
+           p_continents ->> s.country_origin as continent
+    from public.students s
+  ),
+  dir as (
+    select o.id as rater, r.student_id as ratee, r.level
+    from public.relationships r
+    join public.students o on o.user_id = r.owner_id
+    where r.level > 0 and r.student_id <> o.id
+  ),
+  pairs as (
+    select least(rater, ratee) as a, greatest(rater, ratee) as b,
+           max(level) as level,
+           max(level) filter (where rater = me) as my_level
+    from dir
+    group by 1, 2
+  ),
+  edges as (
+    select pa.node as i, pb.node as j,
+           case when me is not null and me in (p.a, p.b) then p.my_level else p.level end as level
+    from pairs p
+    join people pa on pa.id = p.a
+    join people pb on pb.id = p.b
+    where not (me is not null and me in (p.a, p.b)) or p.my_level is not null
+  ),
+  groups as (
+    select continent, count(*)::int as size
+    from people
+    where continent is not null
+    group by continent
+    having count(*) >= 5
+  ),
+  group_pairs as (
+    select least(pa.continent, pb.continent) as g1, greatest(pa.continent, pb.continent) as g2,
+           count(*)::int as met
+    from pairs p
+    join people pa on pa.id = p.a
+    join people pb on pb.id = p.b
+    where pa.continent is not null and pb.continent is not null
+    group by 1, 2
+  ),
+  mixing as (
+    select x.continent as g1, y.continent as g2, coalesce(gp.met, 0) as met,
+           case when x.continent = y.continent then x.size * (x.size - 1) / 2 else x.size * y.size end as total
+    from groups x
+    join groups y on x.continent <= y.continent
+    left join group_pairs gp on gp.g1 = x.continent and gp.g2 = y.continent
+  ),
+  weekly as (
+    select w.week::date as week, c.met, c.great
+    from generate_series(
+      date_trunc('week', (select min(created_at) from public.relationship_events)),
+      date_trunc('week', now()),
+      interval '1 week'
+    ) as w(week)
+    cross join lateral (
+      select count(*)::int as met, count(*) filter (where pp.level >= 3)::int as great
+      from (
+        select max(st.level) as level
+        from (
+          select distinct on (e.owner_id, e.student_id) o.id as rater, e.student_id as ratee, e.to_level as level
+          from public.relationship_events e
+          join public.students o on o.user_id = e.owner_id
+          where e.created_at < w.week + interval '1 week' and e.student_id <> o.id
+          order by e.owner_id, e.student_id, e.created_at desc
+        ) st
+        where st.level > 0
+        group by least(st.rater, st.ratee), greatest(st.rater, st.ratee)
+      ) pp
+    ) c
+  )
+  select jsonb_build_object(
+    'students', (select count(*) from people),
+    'claimed', (select count(*) from public.students where user_id is not null),
+    'trackers', (select count(distinct rater) from dir),
+    'pairs', jsonb_build_object(
+      'met', (select count(*) from pairs),
+      'great', (select count(*) from pairs where level >= 3),
+      'friends', (select count(*) from pairs where level = 4)
+    ),
+    'me', (select node from people where id = me),
+    'edges', coalesce((select jsonb_agg(jsonb_build_array(i, j, level)) from edges), '[]'::jsonb),
+    'weekly', coalesce((select jsonb_agg(jsonb_build_object('week', week, 'met', met, 'great', great) order by week) from weekly), '[]'::jsonb),
+    'groups', coalesce((select jsonb_agg(jsonb_build_object('name', continent, 'size', size) order by size desc) from groups), '[]'::jsonb),
+    'mixing', coalesce((select jsonb_agg(jsonb_build_object('a', g1, 'b', g2, 'met', met, 'total', total)) from mixing), '[]'::jsonb)
+  ) into result;
+
+  return result;
+end;
+$$;

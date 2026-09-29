@@ -29,6 +29,17 @@ export default function About() {
           </li>
           <li>Nobody is ever told how you rated them.</li>
         </ul>
+        <h2 className="pt-2 font-semibold text-oxford-900">Counted anonymously in “Cohort”</h2>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            Everyone’s levels are combined into anonymous totals for the Cohort tab: the Connection Index, weekly
+            progress, an unnamed network of dots and how much continents mix.
+          </li>
+          <li>
+            It never shows names, who rated whom or anyone’s individual levels. Dots are reshuffled on every visit, your
+            own dot only shows the ties you marked, and groups smaller than 5 people are hidden.
+          </li>
+        </ul>
         <h2 className="pt-2 font-semibold text-oxford-900">What's shared with the cohort</h2>
         <ul className="list-disc space-y-1 pl-5">
           <li>

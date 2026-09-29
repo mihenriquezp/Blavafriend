@@ -1,6 +1,7 @@
 // A fully local backend used when Supabase isn't configured. Data is fictional
 // and lives in this browser's localStorage, so anyone can try the app safely.
 import { COLLEGES, COUNTRIES, GENDER_OPTIONS, HOBBIES, LANGUAGES, POLICY_INTERESTS, UNDERGRAD_FIELDS, type Level } from './options'
+import { computeCohort, type Rating } from './cohort'
 import type { Api, CustomTag, Relationship, RelationshipEvent, SessionUser, Student } from './types'
 
 const KEY = 'blavafriend-demo-v2'
@@ -213,6 +214,24 @@ export function createDemoApi(): Api {
     async listEvents() {
       return clone(state.events)
     },
+    async getCohort() {
+      const me = state.students.find((s) => s.user_id === DEMO_USER.id) ?? null
+      // Fictional classmates rating each other over the last few weeks, plus your own ratings.
+      const r = rng(7)
+      const others = state.students.filter((s) => s.id !== me?.id)
+      const day = 86_400_000
+      const ratings: Rating[] = []
+      for (const a of others)
+        for (const b of others) {
+          if (a.id === b.id || r() > 0.12) continue
+          const at = new Date(Date.now() - Math.floor(r() * 35) * day).toISOString()
+          ratings.push({ rater: a.id, ratee: b.id, level: 1 + Math.floor(r() * 4), at })
+        }
+      if (me)
+        for (const e of state.events) ratings.push({ rater: me.id, ratee: e.student_id, level: e.to_level, at: e.created_at })
+      return computeCohort(state.students, ratings, me?.id ?? null)
+    },
+
     async listCustomTags() {
       return clone(state.tags)
     },

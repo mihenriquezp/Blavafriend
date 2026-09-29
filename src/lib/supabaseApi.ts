@@ -1,5 +1,6 @@
 import { createClient, type User } from '@supabase/supabase-js'
-import type { Api, CustomTag, Relationship, RelationshipEvent, SessionUser, Student } from './types'
+import { COUNTRY_CONTINENT } from './options'
+import type { Api, CohortData, CustomTag, Relationship, RelationshipEvent, SessionUser, Student } from './types'
 
 const REL_COLUMNS = 'student_id, level, starred, note, updated_at'
 
@@ -95,6 +96,10 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
           .select('id, student_id, from_level, to_level, created_at')
           .order('created_at'),
       ) as RelationshipEvent[]
+    },
+
+    async getCohort() {
+      return check(await sb.rpc('cohort_overview', { p_continents: COUNTRY_CONTINENT })) as CohortData
     },
 
     async listCustomTags() {

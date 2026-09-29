@@ -7,6 +7,7 @@ import { useStore } from './lib/store'
 import About from './pages/About'
 import Admin from './pages/Admin'
 import Claim from './pages/Claim'
+import Cohort from './pages/Cohort'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import MyProfile from './pages/MyProfile'
@@ -37,6 +38,7 @@ function Gate() {
         <Route index element={<Dashboard />} />
         <Route path="people" element={<People />} />
         <Route path="wishlist" element={<People wishlist />} />
+        <Route path="cohort" element={<Cohort />} />
         <Route path="people/:id" element={<Person />} />
         <Route path="me" element={<MyProfile />} />
         <Route path="admin" element={<Admin />} />

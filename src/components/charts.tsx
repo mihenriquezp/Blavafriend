@@ -132,8 +132,24 @@ const SERIES = [
   { key: 'positive' as const, label: 'Great conversation or friends', color: '#eb6834' },
 ]
 
-export function ProgressChart({ points, total }: { points: WeekPoint[]; total: number }) {
+export function ProgressChart({
+  points,
+  total,
+  unit = 'classmates',
+}: {
+  points: WeekPoint[]
+  total: number
+  /** What the lines count: your classmates, or pairs across the cohort. */
+  unit?: 'classmates' | 'pairs'
+}) {
   const [hover, setHover] = useState<number | null>(null)
+  const series =
+    unit === 'pairs'
+      ? [
+          { ...SERIES[0], label: 'Pairs who’ve met' },
+          { ...SERIES[1], label: 'Pairs with a great chat or friendship' },
+        ]
+      : SERIES
   const box = useRef<HTMLDivElement>(null)
   const [W, setW] = useState(640)
   useEffect(() => {
@@ -160,7 +176,7 @@ export function ProgressChart({ points, total }: { points: WeekPoint[]; total: n
   return (
     <div>
       <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-        {SERIES.map((s) => (
+        {series.map((s) => (
           <li key={s.key} className="flex items-center gap-1.5">
             <span className="h-0.5 w-4 rounded" style={{ background: s.color }} />
             {s.label}
@@ -195,7 +211,7 @@ export function ProgressChart({ points, total }: { points: WeekPoint[]; total: n
             </g>
           ))}
           {points.map((p, i) =>
-            i % labelEvery === 0 || i === points.length - 1 ? (
+            (i % labelEvery === 0 && i < points.length - Math.ceil(labelEvery / 2)) || i === points.length - 1 ? (
               <text
                 key={i}
                 x={x(i)}
@@ -209,7 +225,7 @@ export function ProgressChart({ points, total }: { points: WeekPoint[]; total: n
             ) : null,
           )}
           {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={pad.t} y2={H - pad.b} stroke="#9a9994" strokeWidth={1} />}
-          {SERIES.map((s) => (
+          {series.map((s) => (
             <g key={s.key}>
               <polyline
                 fill="none"
@@ -236,8 +252,10 @@ export function ProgressChart({ points, total }: { points: WeekPoint[]; total: n
         {hover !== null && (
           <Tooltip x={`${(x(hover) / W) * 100}%`} y={`${(y(points[hover].met) / H) * 100}%`}>
             <div className="font-semibold">Week of {fmt(points[hover].weekStart)}</div>
-            <div>Met: {points[hover].met}</div>
-            <div>Great chat or friends: {points[hover].positive}</div>
+            <div>
+              {unit === 'pairs' ? 'Pairs met' : 'Met'}: {points[hover].met.toLocaleString('en-GB')}
+            </div>
+            <div>Great chat or friends: {points[hover].positive.toLocaleString('en-GB')}</div>
           </Tooltip>
         )}
       </div>
