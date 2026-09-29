@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ProgressChart } from '../components/charts'
 import { Constellation } from '../components/Constellation'
 import { Card, Spinner } from '../components/ui'
+import { WorldMap, shareColor } from '../components/WorldMap'
 import { api } from '../lib/api'
 import type { CohortData } from '../lib/types'
 
@@ -18,6 +19,7 @@ export default function Cohort() {
   const [data, setData] = useState<CohortData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [minLevel, setMinLevel] = useState(1)
+  const [asTable, setAsTable] = useState(false)
 
   useEffect(() => {
     api.getCohort().then(setData, (e) => setError(e instanceof Error ? e.message : String(e)))
@@ -130,12 +132,25 @@ export default function Cohort() {
       </Card>
 
       <Card>
-        <h2 className="mb-1 font-semibold text-oxford-900">Are we mixing?</h2>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold text-oxford-900">Bridges across continents</h2>
+          {data.groups.length >= 2 && (
+            <button className="text-xs text-oxford-500 underline" onClick={() => setAsTable((t) => !t)}>
+              {asTable ? 'Show as map' : 'Show as table'}
+            </button>
+          )}
+        </div>
         <p className="mb-3 text-xs text-gray-500">
-          Share of pairs that have met, between and within continents of origin. Continents with fewer than 5 of us
+          How well we know each other within and across our continents of origin. Continents with fewer than 5 of us
           aren’t shown, to keep everyone anonymous.
         </p>
-        <MixingMatrix data={data} />
+        {data.groups.length < 2 ? (
+          <p className="text-sm text-gray-500">Not enough people have added their country yet.</p>
+        ) : asTable ? (
+          <MixingMatrix data={data} />
+        ) : (
+          <WorldMap data={data} />
+        )}
       </Card>
     </div>
   )
@@ -169,8 +184,6 @@ function MilestoneBar({ value }: { value: number }) {
   )
 }
 
-// One-hue sequential ramp for "share met" (light = few, dark = many).
-const RAMP = ['#eef3f9', '#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#1c5cab', '#0d366b']
 
 function MixingMatrix({ data }: { data: CohortData }) {
   const [hover, setHover] = useState<string | null>(null)
@@ -210,7 +223,7 @@ function MixingMatrix({ data }: { data: CohortData }) {
                 {groups.map((b) => {
                   const c = cell.get(`${a}|${b}`)
                   const share = c && c.total ? c.met / c.total : 0
-                  const bg = RAMP[Math.min(RAMP.length - 1, Math.ceil(share * (RAMP.length - 1)))]
+                  const bg = shareColor(share)
                   const key = `${a}|${b}`
                   return (
                     <td key={b} className="p-0">
