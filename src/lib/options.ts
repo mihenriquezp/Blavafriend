@@ -21,6 +21,49 @@ export const FAMILY_OPTIONS = [
 
 export type FamilyStatus = (typeof FAMILY_OPTIONS)[number]['value']
 
+export const GENDER_OPTIONS = [
+  { value: 'woman', label: 'Woman' },
+  { value: 'man', label: 'Man' },
+  { value: 'non_binary', label: 'Non-binary' },
+  { value: 'other', label: 'Other' },
+  { value: 'prefer_not_say', label: 'Prefer not to say' },
+] as const
+
+export type Gender = (typeof GENDER_OPTIONS)[number]['value']
+
+export const UNDERGRAD_FIELDS = [
+  'Economics',
+  'Political Science',
+  'International Relations',
+  'Law',
+  'Public Policy / Administration',
+  'Philosophy, Politics & Economics (PPE)',
+  'Business / Management',
+  'Finance / Accounting',
+  'Sociology',
+  'Anthropology',
+  'Psychology',
+  'History',
+  'Philosophy',
+  'Languages & Literature',
+  'Geography',
+  'Development Studies',
+  'Journalism / Communications',
+  'Engineering',
+  'Computer Science',
+  'Mathematics / Statistics',
+  'Physics',
+  'Chemistry',
+  'Biology / Life Sciences',
+  'Environmental Science',
+  'Medicine / Public Health',
+  'Architecture / Urban Planning',
+  'Education',
+  'Social Work',
+  'Arts / Design',
+  'Military / Defence Studies',
+] as const
+
 export const COLLEGES = [
   'All Souls', 'Balliol', 'Blackfriars', 'Brasenose', 'Campion Hall', 'Christ Church',
   'Corpus Christi', 'Exeter', 'Green Templeton', 'Harris Manchester', 'Hertford',

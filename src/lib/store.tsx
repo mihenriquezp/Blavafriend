@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api } from './api'
-import { HOBBIES, LANGUAGES } from './options'
+import { callName } from './names'
+import { HOBBIES, LANGUAGES, UNDERGRAD_FIELDS } from './options'
 import type {
   CustomTag,
   Relationship,
@@ -24,6 +25,7 @@ interface Store {
   events: RelationshipEvent[]
   hobbyOptions: string[]
   languageOptions: string[]
+  degreeOptions: string[]
   /** Short-lived message shown as a toast. */
   notice: string | null
   reload(): Promise<void>
@@ -108,7 +110,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // Meeting someone you starred takes them off your "want to meet" list.
       if (patch.level !== undefined && patch.level > (prev?.level ?? 0) && prev?.starred && patch.starred === undefined) {
         patch = { ...patch, starred: false }
-        const name = students.find((s) => s.id === studentId)?.full_name.split(' ')[0]
+        const person = students.find((s) => s.id === studentId)
+        const name = person && callName(person)
         setNotice(`${name ?? 'They'} came off your “want to meet” list ★`)
       }
       const optimistic: Relationship = {
@@ -181,6 +184,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     () => mergeOptions(LANGUAGES, tags, 'language', students, (s) => s.languages),
     [tags, students],
   )
+  const degreeOptions = useMemo(
+    () => mergeOptions(UNDERGRAD_FIELDS, tags, 'degree', students, (s) => s.undergrad_fields),
+    [tags, students],
+  )
 
   const value: Store = {
     user,
@@ -195,6 +202,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     events,
     hobbyOptions,
     languageOptions,
+    degreeOptions,
     notice,
     reload,
     setRelationship,

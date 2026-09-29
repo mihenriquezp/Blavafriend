@@ -87,10 +87,19 @@ create table if not exists public.students (
   instagram text,
   x_handle text,
   whatsapp text,
+  nickname text check (char_length(nickname) <= 40),
+  gender text check (gender in ('woman', 'man', 'non_binary', 'other', 'prefer_not_say')),
+  undergrad_fields text[] not null default '{}',
   user_id uuid unique references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Columns added after the first release (safe to re-run).
+alter table public.students add column if not exists nickname text check (char_length(nickname) <= 40);
+alter table public.students add column if not exists gender text
+  check (gender in ('woman', 'man', 'non_binary', 'other', 'prefer_not_say'));
+alter table public.students add column if not exists undergrad_fields text[] not null default '{}';
 
 alter table public.students enable row level security;
 
@@ -259,16 +268,19 @@ create trigger relationships_log_level
   for each row execute function public.relationships_log_level();
 
 -------------------------------------------------------------------------------
--- Custom tags ("Other…" hobbies and languages added by students)
+-- Custom tags ("Other…" hobbies, languages and degrees added by students)
 -------------------------------------------------------------------------------
 
 create table if not exists public.custom_tags (
-  kind text not null check (kind in ('hobby', 'language')),
+  kind text not null,
   label text not null check (char_length(label) between 1 and 40),
   created_by uuid default auth.uid() references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   primary key (kind, label)
 );
+
+alter table public.custom_tags drop constraint if exists custom_tags_kind_check;
+alter table public.custom_tags add constraint custom_tags_kind_check check (kind in ('hobby', 'language', 'degree'));
 
 alter table public.custom_tags enable row level security;
 

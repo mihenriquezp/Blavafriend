@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { BreakdownBars, LevelBar, LevelLegend, ProgressChart } from '../components/charts'
 import { Avatar, Card, LevelBadge } from '../components/ui'
 import { DIMENSIONS, breakdown, levelCounts, weeklyProgress, type Dimension } from '../lib/stats'
+import { callName } from '../lib/names'
 import { useStore } from '../lib/store'
 import type { Level } from '../lib/options'
 
@@ -37,7 +38,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="font-display text-2xl font-bold text-oxford-900">Hi {me?.full_name.split(' ')[0]} 👋</h1>
+        <h1 className="font-display text-2xl font-bold text-oxford-900">Hi {me && callName(me)} 👋</h1>
         <p className="text-sm text-gray-500">Your private overview of the {total + 1}-strong cohort. Only you see this.</p>
       </div>
 

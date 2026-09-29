@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
-import { COLLEGES, COUNTRIES, FAMILY_OPTIONS, HOBBY_GROUPS, POLICY_INTERESTS } from '../lib/options'
+import { COLLEGES, COUNTRIES, FAMILY_OPTIONS, GENDER_OPTIONS, HOBBY_GROUPS, POLICY_INTERESTS } from '../lib/options'
 import { useStore } from '../lib/store'
 import type { Student, StudentPatch } from '../lib/types'
 import { Avatar, Field, TagPicker, btnPrimary, btnSecondary, inputCls } from './ui'
@@ -30,7 +30,7 @@ async function resizeImage(file: File, max = 640): Promise<Blob> {
 }
 
 export function ProfileForm({ student, onDone }: { student: Student; onDone?: () => void }) {
-  const { updateStudent, hobbyOptions, languageOptions, addTag } = useStore()
+  const { updateStudent, hobbyOptions, languageOptions, degreeOptions, addTag } = useStore()
   const [draft, setDraft] = useState<Student>(student)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -63,6 +63,9 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
         instagram: draft.instagram?.trim() || null,
         x_handle: draft.x_handle?.trim() || null,
         whatsapp: draft.whatsapp?.trim() || null,
+        nickname: draft.nickname?.trim() || null,
+        gender: draft.gender,
+        undergrad_fields: draft.undergrad_fields,
       }
       await updateStudent(student.id, patch)
       setMsg({ ok: true, text: 'Saved ✓' })
@@ -112,9 +115,14 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
         </div>
       </div>
 
-      <Field label="Full name">
-        <input required {...text('full_name')} />
-      </Field>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[2fr_1fr]">
+        <Field label="Full name">
+          <input required {...text('full_name')} />
+        </Field>
+        <Field label="Nickname (optional)">
+          <input maxLength={40} placeholder="What friends call you" {...text('nickname')} />
+        </Field>
+      </div>
 
       <Field label="Short intro" hint="A few lines about you: what you did before, what you're excited about.">
         <textarea rows={4} maxLength={1000} {...text('bio')} />
@@ -149,6 +157,20 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
             className={inputCls}
           />
         </Field>
+        <Field label="Gender (optional)">
+          <select
+            value={draft.gender ?? ''}
+            onChange={(e) => set('gender', (e.target.value || null) as Student['gender'])}
+            className={inputCls}
+          >
+            <option value="">—</option>
+            {GENDER_OPTIONS.map((g) => (
+              <option key={g.value} value={g.value}>
+                {g.label}
+              </option>
+            ))}
+          </select>
+        </Field>
         <Field label="Coming with partner / family? (optional)">
           <select
             value={draft.family_status ?? ''}
@@ -164,6 +186,15 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
           </select>
         </Field>
       </div>
+
+      <Field label="Undergraduate degree" hint="Pick one or more. Can't find yours? Type it and choose “Other”.">
+        <TagPicker
+          options={degreeOptions}
+          value={draft.undergrad_fields}
+          onChange={(v) => set('undergrad_fields', v)}
+          onAddOther={(label) => addTag({ kind: 'degree', label })}
+        />
+      </Field>
 
       <Field label="Policy interests">
         <TagPicker options={POLICY_INTERESTS} value={draft.policy_interests} onChange={(v) => set('policy_interests', v)} />

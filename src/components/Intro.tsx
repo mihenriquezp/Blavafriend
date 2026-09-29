@@ -76,9 +76,9 @@ export function Privacy() {
           <b>Your profile</b>, and only when they’re signed in with an Oxford email:
         </p>
         <ul className="space-y-0.5 text-sm">
-          <Item ok>Name and photo</Item>
-          <Item ok>Role, college, countries, age, whether you’re coming with family</Item>
-          <Item ok>Policy interests, hobbies, languages and your intro</Item>
+          <Item ok>Name, nickname and photo</Item>
+          <Item ok>Role, college, countries, age, gender, whether you’re coming with family</Item>
+          <Item ok>Undergraduate degree, policy interests, hobbies, languages and your intro</Item>
           <Item ok>Any social links you choose to add</Item>
         </ul>
         <p className="mt-1.5 text-xs text-gray-500">Everything except your name is optional. Edit or remove it any time.</p>
