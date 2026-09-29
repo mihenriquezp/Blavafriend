@@ -20,8 +20,7 @@ export default function Dashboard() {
   const progress = useMemo(() => weeklyProgress(events, new Set(classmates.map((s) => s.id))), [events, classmates])
 
   const starred = classmates.filter((s) => relationships.get(s.id)?.starred)
-  const starredMet = starred.filter((s) => (relationships.get(s.id)?.level ?? 0) >= 2)
-  const nextUp = starred.filter((s) => (relationships.get(s.id)?.level ?? 0) < 2).slice(0, 6)
+  const nextUp = starred.slice(0, 6)
 
   const suggestions = useMemo(() => {
     if (!me) return []
@@ -47,9 +46,9 @@ export default function Dashboard() {
         <Tile label="Great chat or friends" value={positive} sub={`${pct(positive, total)}% of the cohort`} />
         <Tile label="Friends 💙" value={counts[4]} sub="your inner circle" />
         <Tile
-          label="Want-to-meet list"
-          value={`${starredMet.length}/${starred.length}`}
-          sub={starred.length ? 'already had a conversation' : 'star people to build it'}
+          label="Want to meet ★"
+          value={starred.length}
+          sub={starred.length ? 'still on your list' : 'star people to build it'}
         />
       </div>
 
@@ -103,7 +102,8 @@ export default function Dashboard() {
             <PersonList people={nextUp} />
           ) : (
             <p className="text-sm text-gray-500">
-              {starred.length ? 'You’ve talked to everyone on your list. 🎉' : 'Star classmates you want to meet and they’ll show up here.'}{' '}
+              Star classmates you want to meet and they’ll show up here. Once you move them up a level, they come off the
+              list.{' '}
               <Link to="/people" className="text-oxford-500 underline">
                 Browse people
               </Link>

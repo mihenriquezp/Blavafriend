@@ -11,7 +11,7 @@ const NAV = [
 ]
 
 export function Layout() {
-  const { me, isAdmin } = useStore()
+  const { me, isAdmin, notice } = useStore()
   return (
     <div className="min-h-dvh pb-20 sm:pb-0">
       <header className="sticky top-0 z-20 border-b border-oxford-700 bg-oxford-900 text-white">
@@ -64,7 +64,7 @@ export function Layout() {
       <footer className="mx-auto max-w-5xl px-4 pt-4 pb-8 text-center text-xs text-gray-500">
         Made by MPP students, for MPP students · Not an official University of Oxford app ·{' '}
         <NavLink to="/about" className="underline">
-          Privacy
+          How it works & privacy
         </NavLink>
         {isAdmin && (
           <>
@@ -75,6 +75,15 @@ export function Layout() {
           </>
         )}
       </footer>
+
+      {notice && (
+        <div
+          role="status"
+          className="fixed inset-x-0 bottom-20 z-30 mx-auto w-fit max-w-[calc(100%-2rem)] rounded-xl bg-oxford-900 px-4 py-2.5 text-sm text-white shadow-lg sm:bottom-6"
+        >
+          {notice}
+        </div>
+      )}
 
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
         <div className="grid grid-cols-4">

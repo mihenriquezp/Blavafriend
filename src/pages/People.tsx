@@ -117,7 +117,7 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
           <h1 className="font-display text-2xl font-bold text-oxford-900">{wishlist ? 'Want to meet' : 'People'}</h1>
           <p className="text-sm text-gray-500">
             {wishlist
-              ? 'Classmates you starred. Tap ☆ on anyone to add them here.'
+              ? 'Classmates you starred. They leave the list once you move them up a level.'
               : `${filtered.length} of ${classmates.length} classmates`}
           </p>
         </div>

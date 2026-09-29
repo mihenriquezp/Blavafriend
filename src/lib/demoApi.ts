@@ -4,7 +4,7 @@ import { COLLEGES, COUNTRIES, HOBBIES, LANGUAGES, POLICY_INTERESTS, type Level }
 import type { Api, CustomTag, Relationship, RelationshipEvent, SessionUser, Student } from './types'
 
 const KEY = 'blavafriend-demo-v1'
-const DEMO_USER: SessionUser = { id: 'demo-user', email: 'demo.student@college.ox.ac.uk' }
+const DEMO_USER: SessionUser = { id: 'demo-user', email: 'demo1234@ox.ac.uk' }
 
 interface DemoState {
   signedIn: boolean
