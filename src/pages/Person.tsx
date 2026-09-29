@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Avatar, Card, Chip, LevelPicker, StarButton, btnPrimary } from '../components/ui'
+import { Avatar, Card, Chip, CountryLabel, LevelPicker, StarButton, btnPrimary } from '../components/ui'
 import { FAMILY_OPTIONS, GENDER_OPTIONS, LEVELS, continentOf, type Level } from '../lib/options'
 import { callName } from '../lib/names'
 import { socialLinks } from '../lib/social'
@@ -92,8 +92,17 @@ export default function Person() {
         {s.bio && <p className="mt-4 whitespace-pre-line text-gray-700">{s.bio}</p>}
 
         <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-          <Info label="From" value={s.country_origin && `${s.country_origin} (${continentOf(s.country_origin) ?? '—'})`} />
-          <Info label="Lives in" value={s.country_residence} />
+          <Info
+            label="From"
+            value={
+              s.country_origin && (
+                <>
+                  <CountryLabel country={s.country_origin} /> ({continentOf(s.country_origin) ?? '—'})
+                </>
+              )
+            }
+          />
+          <Info label="Lives in" value={s.country_residence && <CountryLabel country={s.country_residence} />} />
           <Info label="Coming" value={family} />
           <Info label="Speaks" value={s.languages.join(', ')} />
           <Info label="Gender" value={gender} />
@@ -182,7 +191,7 @@ export default function Person() {
   )
 }
 
-function Info({ label, value }: { label: string; value?: string | null | false }) {
+function Info({ label, value }: { label: string; value?: ReactNode }) {
   if (!value) return null
   return (
     <div className="flex gap-2">

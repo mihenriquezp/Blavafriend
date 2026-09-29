@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { LEVELS, type Level } from '../lib/options'
+import { COUNTRY_CODE, LEVELS, type Level } from '../lib/options'
 
 export function Avatar({ name, url, size = 48 }: { name: string; url?: string | null; size?: number }) {
   const initials = name
@@ -239,3 +239,29 @@ export const btnPrimary =
 
 export const btnSecondary =
   'inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-oxford-900 hover:border-oxford-300 disabled:opacity-50'
+
+/** Small flag image (emoji flags don't render on Windows). */
+export function Flag({ country, className = '' }: { country: string | null | undefined; className?: string }) {
+  const code = country ? COUNTRY_CODE[country] : undefined
+  if (!code) return null
+  return (
+    <img
+      src={`/flags/${code}.svg`}
+      alt=""
+      title={country ?? undefined}
+      loading="lazy"
+      className={`inline-block h-[0.85em] w-auto rounded-[2px] align-[-0.05em] shadow-[0_0_0_1px_rgba(0,0,0,0.08)] ${className}`}
+    />
+  )
+}
+
+/** "🇨🇱 Chile" with a flag image in front. */
+export function CountryLabel({ country }: { country: string | null | undefined }) {
+  if (!country) return null
+  return (
+    <span className="whitespace-nowrap">
+      <Flag country={country} className="mr-1" />
+      {country}
+    </span>
+  )
+}

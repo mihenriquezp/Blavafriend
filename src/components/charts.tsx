@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { LEVELS } from '../lib/options'
 import type { GroupRow, WeekPoint } from '../lib/stats'
+import { Flag } from './ui'
 
 // Level colours: one-hue ordinal ramp, defined in index.css.
 export const LEVEL_COLORS = ['var(--color-lvl-0)', 'var(--color-lvl-1)', 'var(--color-lvl-2)', 'var(--color-lvl-3)', 'var(--color-lvl-4)']
@@ -65,7 +66,7 @@ export function LevelBar({ counts }: { counts: number[] }) {
 }
 
 /** Rows of stacked bars: for each group, the share of classmates at each level ≥ 1. */
-export function BreakdownBars({ rows, limit = 12 }: { rows: GroupRow[]; limit?: number }) {
+export function BreakdownBars({ rows, limit = 12, withFlags }: { rows: GroupRow[]; limit?: number; withFlags?: boolean }) {
   const [showAll, setShowAll] = useState(false)
   const [hover, setHover] = useState<{ row: GroupRow; x: number; y: number } | null>(null)
   const ref = useRef<HTMLDivElement>(null)
@@ -86,6 +87,7 @@ export function BreakdownBars({ rows, limit = 12 }: { rows: GroupRow[]; limit?: 
               onMouseLeave={() => setHover(null)}
             >
               <span className="truncate text-gray-700" title={row.group}>
+                {withFlags && <Flag country={row.group} className="mr-1.5" />}
                 {row.group}
               </span>
               <div className="flex h-3.5 gap-[2px] overflow-hidden rounded bg-gray-100">
