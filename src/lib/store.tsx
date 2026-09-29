@@ -24,6 +24,8 @@ interface Store {
   events: RelationshipEvent[]
   hobbyOptions: string[]
   languageOptions: string[]
+  /** Short-lived message shown as a toast. */
+  notice: string | null
   reload(): Promise<void>
   setRelationship(studentId: string, patch: RelationshipPatch): Promise<void>
   updateStudent(id: string, patch: StudentPatch): Promise<void>
@@ -46,6 +48,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [rels, setRels] = useState<Relationship[]>([])
   const [events, setEvents] = useState<RelationshipEvent[]>([])
   const [tags, setTags] = useState<CustomTag[]>([])
+  const [notice, setNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!notice) return
+    const t = window.setTimeout(() => setNotice(null), 3500)
+    return () => window.clearTimeout(t)
+  }, [notice])
 
   useEffect(() => {
     api.getUser().then((u) => {
@@ -94,6 +103,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setRelationship = useCallback(
     async (studentId: string, patch: RelationshipPatch) => {
       const prev = rels.find((r) => r.student_id === studentId)
+      // Meeting someone you starred takes them off your "want to meet" list.
+      if (patch.level !== undefined && patch.level > (prev?.level ?? 0) && prev?.starred && patch.starred === undefined) {
+        patch = { ...patch, starred: false }
+        const name = students.find((s) => s.id === studentId)?.full_name.split(' ')[0]
+        setNotice(`${name ?? 'They'} came off your “want to meet” list ★`)
+      }
       const optimistic: Relationship = {
         student_id: studentId,
         level: 0,
@@ -124,7 +139,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setError(err instanceof Error ? err.message : String(err))
       }
     },
-    [rels],
+    [rels, students],
   )
 
   const replaceStudent = useCallback((s: Student) => {
@@ -169,6 +184,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     events,
     hobbyOptions,
     languageOptions,
+    notice,
     reload,
     setRelationship,
     updateStudent,

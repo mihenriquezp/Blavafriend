@@ -40,7 +40,8 @@ export function HowItWorks() {
           Update it whenever you meet someone. Only you see it.
         </Step>
         <Step icon="★" title="Star who you want to meet">
-          Build your own “want to meet” list and add private notes to remember conversations.
+          Build your own “want to meet” list; people come off it once you move them up a level. Add private notes to
+          remember conversations.
         </Step>
         <Step icon="📊" title="See your progress">
           How much of the cohort you’ve met, by continent, country, college, interests and languages, week by week.
