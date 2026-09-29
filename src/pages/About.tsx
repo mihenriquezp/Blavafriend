@@ -1,3 +1,4 @@
+import { HowItWorks } from '../components/Intro'
 import { Card } from '../components/ui'
 import { LEVELS } from '../lib/options'
 
@@ -5,6 +6,10 @@ export default function About() {
   return (
     <div className="space-y-4">
       <h1 className="font-display text-2xl font-bold text-oxford-900">About & privacy</h1>
+      <Card>
+        <h2 className="mb-3 font-semibold text-oxford-900">How it works</h2>
+        <HowItWorks />
+      </Card>
       <Card className="space-y-3 text-sm leading-relaxed text-gray-700">
         <p>
           <b>Blavafriend</b> is a small side project made by MPP students, for MPP students, to help us get to know
@@ -31,7 +36,7 @@ export default function About() {
         </ul>
         <h2 className="pt-2 font-semibold text-oxford-900">Your data</h2>
         <p>
-          Some profiles were pre-filled from the cohort's informal register so people are easy to find. If you'd like
+          Profiles were pre-filled from the public BSG directory (names) and the cohort's informal register so people are easy to find. If you'd like
           anything changed or your profile removed entirely (including all your private data), ask the admin and it will be
           deleted. Data is hosted on Supabase (EU region).
         </p>

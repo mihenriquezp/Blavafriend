@@ -64,7 +64,7 @@ export function Layout() {
       <footer className="mx-auto max-w-5xl px-4 pt-4 pb-8 text-center text-xs text-gray-500">
         Made by MPP students, for MPP students · Not an official University of Oxford app ·{' '}
         <NavLink to="/about" className="underline">
-          Privacy
+          How it works & privacy
         </NavLink>
         {isAdmin && (
           <>

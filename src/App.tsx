@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { Onboarding, hasSeenOnboarding } from './components/Intro'
 import { Layout } from './components/Layout'
 import { Spinner } from './components/ui'
 import { useStore } from './lib/store'
@@ -13,6 +15,7 @@ import Person from './pages/Person'
 
 function Gate() {
   const { user, authLoading, dataLoading, students, me, error, reload } = useStore()
+  const [, rerender] = useState(0)
   if (authLoading) return <Spinner />
   if (!user) return <Login />
   if (dataLoading && !students.length) return <Spinner label="Loading your cohort…" />
@@ -25,6 +28,8 @@ function Gate() {
         </button>
       </div>
     )
+  // First visit ever (no profile claimed yet): explain the app before "who are you?".
+  if (!me && !hasSeenOnboarding(user.id)) return <Onboarding userId={user.id} onDone={() => rerender((n) => n + 1)} />
   if (!me) return <Claim />
   return (
     <Routes>
