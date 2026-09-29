@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { COUNTRY_CODE, LEVELS, type Level } from '../lib/options'
+import { COUNTRIES, COUNTRY_CODE, LEVELS, type Level } from '../lib/options'
 
 export function Avatar({ name, url, size = 48 }: { name: string; url?: string | null; size?: number }) {
   const initials = name
@@ -221,13 +221,34 @@ export function Spinner({ label = 'Loading…' }: { label?: string }) {
   )
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
-  return (
-    <label className="block">
+/**
+ * Form field with a label. Use `group` for composite pickers (buttons, lists):
+ * a <label> would forward clicks to its first control and mis-select options.
+ */
+export function Field({
+  label,
+  hint,
+  group,
+  children,
+}: {
+  label: string
+  hint?: string
+  group?: boolean
+  children: ReactNode
+}) {
+  const inner = (
+    <>
       <span className="mb-1 block text-sm font-semibold text-oxford-900">{label}</span>
       {hint && <span className="mb-1.5 block text-xs text-gray-500">{hint}</span>}
       {children}
-    </label>
+    </>
+  )
+  return group ? (
+    <div role="group" aria-label={label} className="block">
+      {inner}
+    </div>
+  ) : (
+    <label className="block">{inner}</label>
   )
 }
 
@@ -263,5 +284,127 @@ export function CountryLabel({ country }: { country: string | null | undefined }
       <Flag country={country} className="mr-1" />
       {country}
     </span>
+  )
+}
+
+// Other names people may type when looking for their country.
+const COUNTRY_ALIASES: Record<string, string[]> = {
+  Palestine: ['palestina', 'state of palestine', 'palestinian territories', 'occupied palestinian territory'],
+  'United States': ['usa', 'us', 'america', 'estados unidos', 'eeuu'],
+  'United Kingdom': ['uk', 'britain', 'great britain', 'england', 'scotland', 'wales', 'northern ireland', 'reino unido'],
+  'South Korea': ['korea', 'republic of korea', 'corea'],
+  'North Korea': ['dprk'],
+  "Côte d'Ivoire": ['ivory coast', 'cote divoire'],
+  'Czech Republic': ['czechia'],
+  Eswatini: ['swaziland'],
+  'Timor-Leste': ['east timor'],
+  'DR Congo': ['democratic republic of the congo', 'drc', 'congo kinshasa'],
+  Congo: ['republic of the congo', 'congo brazzaville'],
+  Myanmar: ['burma'],
+  Turkey: ['turkiye', 'türkiye', 'turquia'],
+  'North Macedonia': ['macedonia'],
+  Netherlands: ['holland', 'paises bajos'],
+  'Cape Verde': ['cabo verde'],
+  Brazil: ['brasil'],
+  Mexico: ['méxico'],
+  Spain: ['españa'],
+  Germany: ['alemania', 'deutschland'],
+  Japan: ['japon'],
+  China: ['prc'],
+  'United Arab Emirates': ['uae', 'emirates'],
+  Russia: ['russian federation'],
+  Vietnam: ['viet nam'],
+  Laos: ['lao'],
+}
+
+const foldText = (t: string) =>
+  t
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z ]/g, '')
+
+/** Type-to-search country picker with flags (a 198-item <select> is hard to use). */
+export function CountryPicker({
+  value,
+  onChange,
+  placeholder = 'Type to search, e.g. “pal”',
+}: {
+  value: string | null
+  onChange: (v: string | null) => void
+  placeholder?: string
+}) {
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+  const matches = useMemo(() => {
+    const n = foldText(q).trim()
+    if (!n) return COUNTRIES
+    return COUNTRIES.filter(
+      (c) => foldText(c).includes(n) || (COUNTRY_ALIASES[c] ?? []).some((a) => foldText(a).startsWith(n)),
+    )
+  }, [q])
+  const pick = (c: string | null) => {
+    onChange(c)
+    setQ('')
+    setOpen(false)
+  }
+
+  if (!open)
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={`${inputCls} flex items-center justify-between text-left`}
+        >
+          {value ? <CountryLabel country={value} /> : <span className="text-gray-400">Choose a country…</span>}
+          <span className="ml-2 text-gray-400" aria-hidden>
+            ▾
+          </span>
+        </button>
+        {value && (
+          <button type="button" onClick={() => pick(null)} className="shrink-0 text-xs text-gray-500 underline">
+            Clear
+          </button>
+        )}
+      </div>
+    )
+
+  return (
+    <div className="rounded-xl border border-oxford-300 bg-white p-2">
+      <input
+        autoFocus
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            if (matches[0]) pick(matches[0])
+          } else if (e.key === 'Escape') setOpen(false)
+        }}
+        placeholder={placeholder}
+        className={inputCls}
+        aria-label="Search countries"
+      />
+      <ul className="mt-2 max-h-56 overflow-y-auto" role="listbox">
+        {matches.map((c) => (
+          <li key={c}>
+            <button
+              type="button"
+              role="option"
+              aria-selected={c === value}
+              onClick={() => pick(c)}
+              className={`w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-oxford-50 ${c === value ? 'bg-oxford-50 font-semibold' : ''}`}
+            >
+              <CountryLabel country={c} />
+            </button>
+          </li>
+        ))}
+        {!matches.length && <li className="px-3 py-2 text-sm text-gray-500">No country matches “{q}”.</li>}
+      </ul>
+      <button type="button" onClick={() => setOpen(false)} className="mt-1 text-xs text-gray-500 underline">
+        Cancel
+      </button>
+    </div>
   )
 }

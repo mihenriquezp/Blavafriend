@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Avatar, Chip, CountryLabel, LevelBadge, LevelPicker, StarButton, inputCls } from '../components/ui'
-import { CONTINENTS, FAMILY_OPTIONS, GENDER_OPTIONS, LEVELS, POLICY_INTERESTS, continentOf, type Level } from '../lib/options'
+import { CONTINENTS, COUNTRIES, FAMILY_OPTIONS, GENDER_OPTIONS, LEVELS, POLICY_INTERESTS, continentOf, type Level } from '../lib/options'
 import { useStore } from '../lib/store'
 import type { Student } from '../lib/types'
 
@@ -72,14 +72,18 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
       ;(cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]).forEach((x) => p.append(k, x))
     })
 
-  const countries = useMemo(
-    () => [...new Set(classmates.map((s) => s.country_origin).filter(Boolean) as string[])].sort(),
-    [classmates],
-  )
-  const residences = useMemo(
-    () => [...new Set(classmates.map((s) => s.country_residence).filter(Boolean) as string[])].sort(),
-    [classmates],
-  )
+  // Every country is listed (so nobody's country is ever missing), with how many classmates match.
+  const countryLabels = (get: (s: Student) => string | null) => {
+    const n = new Map<string, number>()
+    classmates.forEach((s) => {
+      const c = get(s)
+      if (c) n.set(c, (n.get(c) ?? 0) + 1)
+    })
+    const all = [...new Set([...COUNTRIES, ...n.keys()])].sort((a, b) => a.localeCompare(b))
+    return { options: all, labels: Object.fromEntries(all.map((c) => [c, n.has(c) ? `${c} (${n.get(c)})` : c])) }
+  }
+  const origins = useMemo(() => countryLabels((s) => s.country_origin), [classmates]) // eslint-disable-line react-hooks/exhaustive-deps
+  const residences = useMemo(() => countryLabels((s) => s.country_residence), [classmates]) // eslint-disable-line react-hooks/exhaustive-deps
   const colleges = useMemo(
     () => [...new Set(classmates.map((s) => s.college).filter(Boolean) as string[])].sort(),
     [classmates],
@@ -170,8 +174,8 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
         <div className="mt-3 space-y-4 rounded-2xl border border-gray-200 bg-white p-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Select label="Continent (origin)" value={single('continent')} options={[...CONTINENTS]} onChange={(v) => setSingle('continent', v)} />
-            <Select label="Country of origin" value={single('country')} options={countries} onChange={(v) => setSingle('country', v)} />
-            <Select label="Country of residence" value={single('residence')} options={residences} onChange={(v) => setSingle('residence', v)} />
+            <Select label="Country of origin" value={single('country')} options={origins.options} labels={origins.labels} onChange={(v) => setSingle('country', v)} />
+            <Select label="Country of residence" value={single('residence')} options={residences.options} labels={residences.labels} onChange={(v) => setSingle('residence', v)} />
             <Select label="College" value={single('college')} options={colleges} onChange={(v) => setSingle('college', v)} />
             <Select
               label="Coming with"

@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
-import { COLLEGES, COUNTRIES, FAMILY_OPTIONS, GENDER_OPTIONS, HOBBY_GROUPS, POLICY_INTERESTS } from '../lib/options'
+import { COLLEGES, FAMILY_OPTIONS, GENDER_OPTIONS, HOBBY_GROUPS, POLICY_INTERESTS } from '../lib/options'
 import { useStore } from '../lib/store'
 import type { Student, StudentPatch } from '../lib/types'
-import { Avatar, Field, TagPicker, btnPrimary, btnSecondary, inputCls } from './ui'
+import { Avatar, CountryPicker, Field, TagPicker, btnPrimary, btnSecondary, inputCls } from './ui'
 
 async function resizeImage(file: File, max = 640): Promise<Blob> {
   const bitmap = await createImageBitmap(file)
@@ -133,11 +133,11 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
       </Field>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Country of origin">
-          <CountrySelect value={draft.country_origin} onChange={(v) => set('country_origin', v)} />
+        <Field label="Country of origin" group>
+          <CountryPicker value={draft.country_origin} onChange={(v) => set('country_origin', v)} />
         </Field>
-        <Field label="Country of residence">
-          <CountrySelect value={draft.country_residence} onChange={(v) => set('country_residence', v)} />
+        <Field label="Country of residence" group>
+          <CountryPicker value={draft.country_residence} onChange={(v) => set('country_residence', v)} />
         </Field>
         <Field label="College">
           <select value={draft.college ?? ''} onChange={(e) => set('college', e.target.value || null)} className={inputCls}>
@@ -187,7 +187,7 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
         </Field>
       </div>
 
-      <Field label="Undergraduate degree" hint="Pick one or more. Can't find yours? Type it and choose “Other”.">
+      <Field group label="Undergraduate degree" hint="Pick one or more. Can't find yours? Type it and choose “Other”.">
         <TagPicker
           options={degreeOptions}
           value={draft.undergrad_fields}
@@ -196,10 +196,10 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
         />
       </Field>
 
-      <Field label="Policy interests">
+      <Field group label="Policy interests">
         <TagPicker options={POLICY_INTERESTS} value={draft.policy_interests} onChange={(v) => set('policy_interests', v)} />
       </Field>
-      <Field label="Hobbies & interests" hint="Can't find yours? Type it and choose “Other”.">
+      <Field group label="Hobbies & interests" hint="Can't find yours? Type it and choose “Other”.">
         <TagPicker
           options={hobbyOptions}
           groups={HOBBY_GROUPS}
@@ -208,7 +208,7 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
           onAddOther={(label) => addTag({ kind: 'hobby', label })}
         />
       </Field>
-      <Field label="Languages you speak">
+      <Field group label="Languages you speak">
         <TagPicker
           options={languageOptions}
           value={draft.languages}
@@ -232,17 +232,5 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
         {msg && <span className={`text-sm ${msg.ok ? 'text-green-700' : 'text-red-700'}`}>{msg.text}</span>}
       </div>
     </form>
-  )
-}
-
-function CountrySelect({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
-  return (
-    <select value={value ?? ''} onChange={(e) => onChange(e.target.value || null)} className={inputCls}>
-      <option value="">—</option>
-      {value && !COUNTRIES.includes(value) && <option value={value}>{value}</option>}
-      {COUNTRIES.map((c) => (
-        <option key={c}>{c}</option>
-      ))}
-    </select>
   )
 }
