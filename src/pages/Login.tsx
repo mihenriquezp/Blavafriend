@@ -58,8 +58,13 @@ export default function Login() {
                 placeholder="firstname.lastname@college.ox.ac.uk"
                 className={inputCls}
               />
-              {email && !validEmail && (
+              {email && !validEmail ? (
                 <p className="mt-1 text-xs text-amber-700">Only @ox.ac.uk addresses can sign in.</p>
+              ) : (
+                <p className="mt-1 text-xs text-gray-500">
+                  Either format works (name@college.ox.ac.uk or abcd1234@ox.ac.uk), but always use the same one: each
+                  address is a separate account.
+                </p>
               )}
               <button className={`${btnPrimary} mt-4 w-full`} disabled={busy || !validEmail}>
                 {busy ? 'Sending…' : 'Email me a sign-in code'}
