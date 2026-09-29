@@ -29,7 +29,7 @@ export default function About() {
         <ul className="list-disc space-y-1 pl-5">
           <li>
             Your profile (name, photo, role, college, countries, interests, languages, intro and any social links you add)
-            is visible to classmates who sign in with an Oxford email.
+            is visible to classmates who sign in with their Oxford account.
           </li>
           <li>Everything except your name is optional, and you can edit or remove it at any time from your profile.</li>
           <li>Profile photos are stored at an unguessable link that isn't listed anywhere public.</li>

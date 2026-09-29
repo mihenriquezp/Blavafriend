@@ -25,7 +25,9 @@ create or replace function public.is_allowed_email(p_email text)
 returns boolean
 language sql stable security definer set search_path = public
 as $$
-  select lower(p_email) ~ '@([a-z0-9-]+\.)*ox\.ac\.uk$'
+  -- Only Oxford username addresses (e.g. abcd1234@ox.ac.uk): one per person, so nobody
+  -- ends up with two accounts via their name@college.ox.ac.uk alias.
+  select lower(trim(p_email)) ~ '^[a-z]+[0-9]+@ox\.ac\.uk$'
       or exists (select 1 from public.allowed_emails where email = lower(p_email));
 $$;
 
@@ -52,7 +54,7 @@ language plpgsql security definer set search_path = public
 as $$
 begin
   if new.email is null or not public.is_allowed_email(new.email) then
-    raise exception 'Blavafriend is only open to @ox.ac.uk email addresses';
+    raise exception 'Blavafriend only accepts Oxford username emails, like abcd1234@ox.ac.uk';
   end if;
   return new;
 end;

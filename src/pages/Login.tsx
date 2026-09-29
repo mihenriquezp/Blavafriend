@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from 'react'
 import { HowItWorks, INTRO_SEEN_KEY, Privacy, Purpose } from '../components/Intro'
 import { btnPrimary, inputCls } from '../components/ui'
+import { OXFORD_EMAIL } from '../lib/options'
 import { api } from '../lib/api'
 
 export default function Login() {
-  const [email, setEmail] = useState(api.mode === 'demo' ? 'demo.student@college.ox.ac.uk' : '')
+  const [email, setEmail] = useState(api.mode === 'demo' ? 'demo1234@ox.ac.uk' : '')
   const [code, setCode] = useState('')
   const [step, setStep] = useState<'intro' | 'email' | 'code'>(() => {
     try {
@@ -28,7 +29,8 @@ export default function Login() {
     }
   }
 
-  const validEmail = /@([a-z0-9-]+\.)*ox\.ac\.uk$/i.test(email.trim())
+  const validEmail = OXFORD_EMAIL.test(email.trim())
+  const looksLikeAlias = /@([a-z0-9-]+\.)*ox\.ac\.uk$/i.test(email.trim()) && !validEmail
 
   if (step === 'intro')
     return (
@@ -90,7 +92,7 @@ export default function Login() {
               }}
             >
               <label className="mb-1 block text-sm font-semibold text-oxford-900" htmlFor="email">
-                Your Oxford email
+                Your Oxford username email
               </label>
               <input
                 id="email"
@@ -99,15 +101,19 @@ export default function Login() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="firstname.lastname@college.ox.ac.uk"
+                placeholder="abcd1234@ox.ac.uk"
                 className={inputCls}
               />
               {email && !validEmail ? (
-                <p className="mt-1 text-xs text-amber-700">Only @ox.ac.uk addresses can sign in.</p>
+                <p className="mt-1 text-xs text-amber-700">
+                  {looksLikeAlias
+                    ? 'Please use your Oxford username address instead (the one you use for Single Sign-On, e.g. abcd1234@ox.ac.uk). College addresses like name@college.ox.ac.uk aren’t accepted.'
+                    : 'Use your Oxford username address, e.g. abcd1234@ox.ac.uk.'}
+                </p>
               ) : (
                 <p className="mt-1 text-xs text-gray-500">
-                  Either format works (name@college.ox.ac.uk or abcd1234@ox.ac.uk), but always use the same one: each
-                  address is a separate account.
+                  The one you use for Oxford Single Sign-On, e.g. abcd1234@ox.ac.uk. Your
+                  name@college.ox.ac.uk address won’t work.
                 </p>
               )}
               <button className={`${btnPrimary} mt-4 w-full`} disabled={busy || !validEmail}>

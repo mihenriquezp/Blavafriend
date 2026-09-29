@@ -4,7 +4,7 @@ Una app hecha por estudiantes del MPP (Blavatnik School, Oxford), para estudiant
 
 - **Niveles**: 0 No se conocen · 1 Saludo · 2 Conversación inicial · 3 Gran conversación · 4 Amigos
 - **Todo lo tuyo es privado**: niveles, ★, notas e historial. La base de datos solo permite que cada cuenta lea sus propias filas (Row Level Security).
-- **Login** con código enviado al correo `@ox.ac.uk` (sin contraseñas). Luego cada persona se busca en la lista y dice "este soy yo" (una sola vez).
+- **Login** con código enviado al correo de usuario de Oxford (`abcd1234@ox.ac.uk`; los alias `nombre@college.ox.ac.uk` no se aceptan, para que nadie tenga dos cuentas). Luego cada persona se busca en la lista y dice "este soy yo" (una sola vez).
 - **Web instalable** en iPhone/Android (PWA): Compartir → *Añadir a pantalla de inicio*.
 
 Stack: React + Vite + Tailwind, con [Supabase](https://supabase.com) (base de datos, login y fotos) y [Vercel](https://vercel.com) (hosting). Todo en planes gratuitos.
@@ -25,7 +25,7 @@ Sin variables de Supabase, la app corre con 40 compañeros ficticios guardados e
 2. Ve a **SQL Editor → New query**, pega el contenido de [`supabase/schema.sql`](supabase/schema.sql) y dale a **Run**.
 3. En el mismo editor, hazte admin:
    ```sql
-   insert into public.app_admins (email) values ('tu.nombre@college.ox.ac.uk');
+   insert into public.app_admins (email) values ('abcd1234@ox.ac.uk');
    ```
 4. **Authentication → Emails → Templates → Magic Link**: reemplaza el cuerpo por algo como
    `Your Blavafriend code is <b>{{ .Token }}</b>`. Usamos códigos y no links porque el correo de Oxford (Microsoft) "abre" los links para escanearlos, y eso los invalida.

@@ -178,3 +178,6 @@ export const COUNTRIES = Object.keys(COUNTRY_CONTINENT).sort((a, b) => a.localeC
 export function continentOf(country: string | null | undefined): Continent | null {
   return country ? (COUNTRY_CONTINENT[country] ?? null) : null
 }
+
+/** Oxford username address, e.g. abcd1234@ox.ac.uk. Mirrors public.is_allowed_email(). */
+export const OXFORD_EMAIL = /^[a-z]+[0-9]+@ox\.ac\.uk$/i

@@ -70,26 +70,47 @@ export function HowItWorks() {
 export function Privacy() {
   return (
     <div className="space-y-3 text-gray-700">
-      <div className="rounded-xl border border-green-200 bg-green-50 p-3">
-        <div className="mb-1 font-semibold text-green-900">🔒 Private: only you can see it</div>
-        <p className="text-sm">
-          The levels you give people, your ★ list, your notes and your stats. Nobody else can see them in the app,
-          including the admin, and nobody is ever told how you rated them.
-        </p>
-      </div>
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-        <div className="mb-1 font-semibold text-oxford-900">👀 Shared with the cohort</div>
-        <p className="text-sm">
-          Your profile, visible only to classmates signed in with an Oxford email. Everything except your name is
-          optional, and you can edit or remove it at any time.
+        <div className="mb-1.5 font-semibold text-oxford-900">👀 What your classmates see</div>
+        <p className="mb-1.5 text-sm">
+          <b>Your profile</b>, and only when they’re signed in with an Oxford email:
         </p>
+        <ul className="space-y-0.5 text-sm">
+          <Item ok>Name and photo</Item>
+          <Item ok>Role, college, countries, age, whether you’re coming with family</Item>
+          <Item ok>Policy interests, hobbies, languages and your intro</Item>
+          <Item ok>Any social links you choose to add</Item>
+        </ul>
+        <p className="mt-1.5 text-xs text-gray-500">Everything except your name is optional. Edit or remove it any time.</p>
+      </div>
+      <div className="rounded-xl border border-green-200 bg-green-50 p-3">
+        <div className="mb-1.5 font-semibold text-green-900">🔒 What nobody else sees</div>
+        <p className="mb-1.5 text-sm">Only you, not your classmates and not the admin:</p>
+        <ul className="space-y-0.5 text-sm">
+          <Item>How you’ve categorised each person (the five levels)</Item>
+          <Item>Your “want to meet” ★ list</Item>
+          <Item>Your private notes</Item>
+          <Item>Your stats and history</Item>
+        </ul>
+        <p className="mt-1.5 text-xs text-green-900/80">Nobody is ever told how you rated them or that you starred them.</p>
       </div>
       <p className="text-xs text-gray-500">
-        Some profiles were pre-filled from the cohort’s informal register and the public BSG directory so people are
+        Profiles were pre-filled from the public BSG directory (names) and the cohort’s informal register so people are
         easy to find. Ask the admin to change or delete your data at any time. A student project, not an official
         University of Oxford app.
       </p>
     </div>
+  )
+}
+
+function Item({ ok, children }: { ok?: boolean; children: ReactNode }) {
+  return (
+    <li className="flex gap-2">
+      <span aria-hidden className={ok ? 'text-oxford-500' : 'text-green-700'}>
+        {ok ? '✓' : '🔒'}
+      </span>
+      <span>{children}</span>
+    </li>
   )
 }
 
