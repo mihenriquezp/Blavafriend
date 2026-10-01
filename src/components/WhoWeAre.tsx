@@ -54,9 +54,6 @@ export function WhoWeAre({ students }: { students: Student[] }) {
   const { rows, answered } = useMemo(() => countBy(students, current.get), [students, current])
   const shown = showAll ? rows : rows.slice(0, 8)
   const max = rows[0]?.[1] ?? 1
-  // Ties share a medal: rank by distinct counts.
-  const topCounts = [...new Set(rows.map(([, n]) => n))].slice(0, 3)
-  const medal = (n: number) => (['🥇', '🥈', '🥉'] as const)[topCounts.indexOf(n)] ?? null
   const { ages } = facts
 
   return (
@@ -149,7 +146,6 @@ export function WhoWeAre({ students }: { students: Student[] }) {
             {shown.map(([label, n]) => (
               <li key={label} className="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3 text-sm sm:grid-cols-[minmax(0,14rem)_1fr_auto]">
                 <span className="truncate text-gray-700" title={label}>
-                  {medal(n) && <span aria-hidden>{medal(n)} </span>}
                   {dim === 'country' && <Flag country={label} className="mr-1.5" />}
                   {label}
                 </span>
