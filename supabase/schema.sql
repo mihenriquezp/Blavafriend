@@ -555,12 +555,18 @@ create table if not exists public.app_visits (
 alter table public.app_visits enable row level security;
 -- No policies: written only through record_visit(), read only through admin_usage().
 
+-- "Today" for the cohort, which lives on Oxford time (Supabase runs on UTC).
+create or replace function public.london_today()
+returns date
+language sql stable
+as $$ select (now() at time zone 'Europe/London')::date $$;
+
 create or replace function public.record_visit()
 returns void
 language sql volatile security definer set search_path = public
 as $$
   insert into public.app_visits (user_id, day)
-  select auth.uid(), current_date
+  select auth.uid(), public.london_today()
   where public.is_member()
   on conflict do nothing;
 $$;
@@ -568,7 +574,7 @@ $$;
 -- Totals only: no names, no per-person activity, no individual ratings.
 create or replace function public.admin_usage()
 returns jsonb
-language plpgsql stable security definer set search_path = public
+language plpgsql stable security definer set search_path = public, pg_temp
 as $$
 declare
   result jsonb;
@@ -580,8 +586,20 @@ begin
   with
   students as (select * from public.students where role = 'student'),
   claimed as (select * from students where user_id is not null),
+  -- Someone is "active" on a day if they opened the app (app_visits, recorded
+  -- from this release on) or did something in it: changed a level, posted an
+  -- event / song / notice or RSVP'd. This also fills in days before visits
+  -- were recorded.
+  activity as (
+    select user_id, day from public.app_visits
+    union select owner_id, (created_at at time zone 'Europe/London')::date from public.relationship_events
+    union select created_by, (created_at at time zone 'Europe/London')::date from public.cal_events
+    union select created_by, (created_at at time zone 'Europe/London')::date from public.songs
+    union select created_by, (created_at at time zone 'Europe/London')::date from public.notices
+    union select user_id, (created_at at time zone 'Europe/London')::date from public.cal_rsvps
+  ),
   days as (
-    select d::date as day from generate_series(current_date - 29, current_date, interval '1 day') d
+    select d::date as day from generate_series(london_today() - 29, london_today(), interval '1 day') d
   )
   select jsonb_build_object(
     'cohort', (select count(*) from students),
@@ -592,16 +610,16 @@ begin
     'stars', (select count(*) from public.relationships where starred),
     'notes', (select count(*) from public.relationships where note is not null and note <> ''),
     'active', jsonb_build_object(
-      'd1', (select count(distinct user_id) from public.app_visits where day >= current_date),
-      'd7', (select count(distinct user_id) from public.app_visits where day > current_date - 7),
-      'd30', (select count(distinct user_id) from public.app_visits where day > current_date - 30)
+      'd1', (select count(distinct user_id) from activity where day >= london_today()),
+      'd7', (select count(distinct user_id) from activity where day > london_today() - 7),
+      'd30', (select count(distinct user_id) from activity where day > london_today() - 30)
     ),
     'daily', (
       select jsonb_agg(jsonb_build_object(
         'day', d.day,
-        'active', (select count(*) from public.app_visits v where v.day = d.day),
-        'changes', (select count(*) from public.relationship_events e where e.created_at::date = d.day),
-        'signups', (select count(*) from auth.users u where u.created_at::date = d.day)
+        'active', (select count(distinct a.user_id) from activity a where a.day = d.day),
+        'changes', (select count(*) from public.relationship_events e where (e.created_at at time zone 'Europe/London')::date = d.day),
+        'signups', (select count(*) from auth.users u where (u.created_at at time zone 'Europe/London')::date = d.day)
       ) order by d.day)
       from days d
     ),
@@ -618,7 +636,7 @@ begin
       'upcoming_events', (select count(*) from public.cal_events where coalesce(ends_at, starts_at) >= now()),
       'rsvps', (select count(*) from public.cal_rsvps),
       'songs', (select count(*) from public.songs),
-      'notices', (select count(*) from public.notices where expires_on is null or expires_on >= current_date)
+      'notices', (select count(*) from public.notices where expires_on is null or expires_on >= london_today())
     )
   ) into result;
   return result;
