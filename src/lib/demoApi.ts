@@ -2,9 +2,20 @@
 // and lives in this browser's localStorage, so anyone can try the app safely.
 import { COLLEGES, COUNTRIES, GENDER_OPTIONS, HOBBIES, LANGUAGES, POLICY_INTERESTS, UNDERGRAD_FIELDS, type Level } from './options'
 import { computeCohort, type Rating } from './cohort'
-import type { Api, CustomTag, Relationship, RelationshipEvent, SessionUser, Student } from './types'
+import type {
+  Api,
+  CalEvent,
+  CustomTag,
+  Notice,
+  Relationship,
+  RelationshipEvent,
+  Rsvp,
+  SessionUser,
+  Song,
+  Student,
+} from './types'
 
-const KEY = 'blavafriend-demo-v3'
+const KEY = 'blavafriend-demo-v4'
 const DEMO_USER: SessionUser = { id: 'demo-user', email: 'demo1234@ox.ac.uk' }
 
 interface DemoState {
@@ -13,6 +24,10 @@ interface DemoState {
   relationships: Relationship[]
   events: RelationshipEvent[]
   tags: CustomTag[]
+  calEvents: CalEvent[]
+  rsvps: Rsvp[]
+  songs: Song[]
+  notices: Notice[]
 }
 
 const FIRST = [
@@ -99,7 +114,37 @@ function seed(): DemoState {
   students.slice(30, 35).forEach((s) =>
     relationships.push({ student_id: s.id, level: 0, starred: true, note: null, updated_at: new Date().toISOString() }),
   )
-  return { signedIn: false, students, relationships, events, tags: [] }
+  // A few fictional classmates have accounts, so their posts show an author.
+  students.slice(1, 9).forEach((s, i) => (s.user_id = `demo-u-${i}`))
+  const iso = (days: number, hour = 19) => {
+    const d = new Date(now + days * day)
+    d.setHours(hour, 0, 0, 0)
+    return d.toISOString()
+  }
+  const calEvents: CalEvent[] = [
+    { id: 'ev1', title: 'Pub quiz at The Eagle and Child', description: 'Teams of 4–6, mixing encouraged! First round on the winners.', starts_at: iso(2, 19), ends_at: iso(2, 22), location: 'The Eagle and Child, St Giles', link: null, created_by: 'demo-u-0', created_at: iso(-1) },
+    { id: 'ev2', title: 'Sunday hike to Shotover', description: 'Easy 8 km walk, back for lunch.', starts_at: iso(5, 10), ends_at: null, location: 'Meet at Carfax Tower', link: null, created_by: 'demo-u-3', created_at: iso(-2) },
+    { id: 'ev3', title: 'Latin American dinner', description: 'Bring a dish from home 🌮', starts_at: iso(9, 19), ends_at: null, location: 'Kellogg College common room', link: 'https://example.com/signup', created_by: 'demo-u-5', created_at: iso(-3) },
+    { id: 'ev4', title: 'Welcome drinks', description: null, starts_at: iso(-4, 18), ends_at: null, location: 'BSG café', link: null, created_by: 'demo-u-1', created_at: iso(-10) },
+  ]
+  const rsvps: Rsvp[] = [
+    ...['demo-u-0', 'demo-u-1', 'demo-u-2', 'demo-u-4', 'demo-u-6'].map((u) => ({ event_id: 'ev1', user_id: u, status: 'going' as const })),
+    { event_id: 'ev1', user_id: 'demo-u-7', status: 'maybe' },
+    ...['demo-u-3', 'demo-u-5'].map((u) => ({ event_id: 'ev2', user_id: u, status: 'going' as const })),
+    ...['demo-u-5', 'demo-u-2', 'demo-u-6'].map((u) => ({ event_id: 'ev3', user_id: u, status: 'going' as const })),
+  ]
+  const songs: Song[] = [
+    { id: 'so1', spotify_id: '4cOdK2wGLETKBW3PvgPWqT', note: 'Never gonna give you up 🙃', created_by: 'demo-u-2', created_at: iso(-1) },
+    { id: 'so2', spotify_id: '3n3Ppam7vgaVa1iaRUc9Lp', note: 'For the pre-drinks', created_by: 'demo-u-4', created_at: iso(-2) },
+    { id: 'so3', spotify_id: '7qiZfU4dY1lWllzX7mPBI3', note: null, created_by: 'demo-u-6', created_at: iso(-3) },
+  ]
+  const notices: Notice[] = [
+    { id: 'no1', category: 'deal', title: '20% off at Walton Street Cycles with student card', body: 'Valid on bikes and repairs until the end of the month.', link: 'https://example.com/bikes', expires_on: iso(25).slice(0, 10), created_by: 'demo-u-1', created_at: iso(-1) },
+    { id: 'no2', category: 'opportunity', title: 'OECD summer internship: applications open', body: 'Deadline 15 November. Happy to share tips!', link: 'https://example.com/oecd', expires_on: iso(40).slice(0, 10), created_by: 'demo-u-5', created_at: iso(-2) },
+    { id: 'no3', category: 'housing', title: 'Room available in Jericho from January', body: 'Shared house with 2 DPhil students, 5 min walk to BSG.', link: null, expires_on: null, created_by: 'demo-u-3', created_at: iso(-3) },
+    { id: 'no4', category: 'for_sale', title: 'Free: desk lamp and kettle', body: 'Pick up at Wolfson.', link: null, expires_on: iso(10).slice(0, 10), created_by: 'demo-u-7', created_at: iso(-4) },
+  ]
+  return { signedIn: false, students, relationships, events, tags: [], calEvents, rsvps, songs, notices }
 }
 
 function blankStudent(full_name: string, user_id: string | null): Student {
@@ -231,6 +276,63 @@ export function createDemoApi(): Api {
       if (me)
         for (const e of state.events) ratings.push({ rater: me.id, ratee: e.student_id, level: e.to_level, at: e.created_at })
       return computeCohort(state.students, ratings, me?.id ?? null)
+    },
+
+    async listCalEvents() {
+      return clone(state.calEvents).sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    },
+    async saveCalEvent(input, id) {
+      let ev = id ? state.calEvents.find((e) => e.id === id) : undefined
+      if (ev) Object.assign(ev, input)
+      else {
+        ev = { ...input, id: crypto.randomUUID(), created_by: DEMO_USER.id, created_at: new Date().toISOString() }
+        state.calEvents.push(ev)
+      }
+      save()
+      return clone(ev)
+    },
+    async deleteCalEvent(id) {
+      state.calEvents = state.calEvents.filter((e) => e.id !== id)
+      state.rsvps = state.rsvps.filter((r) => r.event_id !== id)
+      save()
+    },
+    async listRsvps() {
+      return clone(state.rsvps)
+    },
+    async setRsvp(eventId, status) {
+      state.rsvps = state.rsvps.filter((r) => !(r.event_id === eventId && r.user_id === DEMO_USER.id))
+      if (status) state.rsvps.push({ event_id: eventId, user_id: DEMO_USER.id, status })
+      save()
+    },
+    async listSongs() {
+      return clone(state.songs).sort((a, b) => b.created_at.localeCompare(a.created_at))
+    },
+    async addSong(spotify_id, note) {
+      const song: Song = { id: crypto.randomUUID(), spotify_id, note, created_by: DEMO_USER.id, created_at: new Date().toISOString() }
+      state.songs.push(song)
+      save()
+      return clone(song)
+    },
+    async deleteSong(id) {
+      state.songs = state.songs.filter((s) => s.id !== id)
+      save()
+    },
+    async listNotices() {
+      return clone(state.notices).sort((a, b) => b.created_at.localeCompare(a.created_at))
+    },
+    async saveNotice(input, id) {
+      let n = id ? state.notices.find((x) => x.id === id) : undefined
+      if (n) Object.assign(n, input)
+      else {
+        n = { ...input, id: crypto.randomUUID(), created_by: DEMO_USER.id, created_at: new Date().toISOString() }
+        state.notices.push(n)
+      }
+      save()
+      return clone(n)
+    },
+    async deleteNotice(id) {
+      state.notices = state.notices.filter((n) => n.id !== id)
+      save()
     },
 
     async listCustomTags() {

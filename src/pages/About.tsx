@@ -47,6 +47,10 @@ export default function About() {
             is visible to classmates who sign in with their Oxford account.
           </li>
           <li>Everything except your name is optional, and you can edit or remove it at any time from your profile.</li>
+          <li>
+            In Resources, the events, songs and notices you post, and the events you say you’re going to, are visible to
+            classmates with your name. You can delete your posts at any time.
+          </li>
           <li>Profile photos are stored at an unguessable link that isn't listed anywhere public.</li>
         </ul>
         <h2 className="pt-2 font-semibold text-oxford-900">Your data</h2>

@@ -68,6 +68,46 @@ export interface CohortData {
   mixing: { a: string; b: string; met: number; total: number }[]
 }
 
+export interface CalEvent {
+  id: string
+  title: string
+  description: string | null
+  starts_at: string
+  ends_at: string | null
+  location: string | null
+  link: string | null
+  created_by: string
+  created_at: string
+}
+export type CalEventInput = Pick<CalEvent, 'title' | 'description' | 'starts_at' | 'ends_at' | 'location' | 'link'>
+
+export interface Rsvp {
+  event_id: string
+  user_id: string
+  status: 'going' | 'maybe'
+}
+
+export interface Song {
+  id: string
+  spotify_id: string
+  note: string | null
+  created_by: string
+  created_at: string
+}
+
+export type NoticeCategory = 'event' | 'deal' | 'opportunity' | 'housing' | 'for_sale' | 'other'
+export interface Notice {
+  id: string
+  category: NoticeCategory
+  title: string
+  body: string | null
+  link: string | null
+  expires_on: string | null
+  created_by: string
+  created_at: string
+}
+export type NoticeInput = Pick<Notice, 'category' | 'title' | 'body' | 'link' | 'expires_on'>
+
 export interface SessionUser {
   id: string
   email: string
@@ -94,6 +134,18 @@ export interface Api {
   listEvents(): Promise<RelationshipEvent[]>
 
   getCohort(): Promise<CohortData>
+
+  listCalEvents(): Promise<CalEvent[]>
+  saveCalEvent(input: CalEventInput, id?: string): Promise<CalEvent>
+  deleteCalEvent(id: string): Promise<void>
+  listRsvps(): Promise<Rsvp[]>
+  setRsvp(eventId: string, status: Rsvp['status'] | null): Promise<void>
+  listSongs(): Promise<Song[]>
+  addSong(spotifyId: string, note: string | null): Promise<Song>
+  deleteSong(id: string): Promise<void>
+  listNotices(): Promise<Notice[]>
+  saveNotice(input: NoticeInput, id?: string): Promise<Notice>
+  deleteNotice(id: string): Promise<void>
 
   listCustomTags(): Promise<CustomTag[]>
   addCustomTag(tag: CustomTag): Promise<void>
