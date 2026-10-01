@@ -112,6 +112,21 @@ export interface Notice {
 }
 export type NoticeInput = Pick<Notice, 'category' | 'title' | 'body' | 'link' | 'expires_on'>
 
+/** Admin-only usage totals (see public.admin_usage). */
+export interface UsageData {
+  cohort: number
+  accounts: number
+  claimed: number
+  trackers: number
+  ratings: number
+  stars: number
+  notes: number
+  active: { d1: number; d7: number; d30: number }
+  daily: { day: string; active: number; changes: number; signups: number }[]
+  profiles: { photo: number; birthday: number; country: number; hobbies: number; bio: number; languages: number }
+  resources: { events: number; upcoming_events: number; rsvps: number; songs: number; notices: number }
+}
+
 export interface SessionUser {
   id: string
   email: string
@@ -150,6 +165,9 @@ export interface Api {
   listNotices(): Promise<Notice[]>
   saveNotice(input: NoticeInput, id?: string): Promise<Notice>
   deleteNotice(id: string): Promise<void>
+
+  recordVisit(): Promise<void>
+  adminUsage(): Promise<UsageData>
 
   listCustomTags(): Promise<CustomTag[]>
   addCustomTag(tag: CustomTag): Promise<void>

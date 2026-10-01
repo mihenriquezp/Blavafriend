@@ -93,6 +93,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Count this account as active today (one row per day; nothing else is recorded).
+  useEffect(() => {
+    if (user) api.recordVisit().catch(() => {})
+  }, [user])
+
   useEffect(() => {
     if (user) reload()
     else {

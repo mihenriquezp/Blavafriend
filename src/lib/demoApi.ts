@@ -340,6 +340,42 @@ export function createDemoApi(): Api {
       save()
     },
 
+    async recordVisit() {},
+    async adminUsage() {
+      // Fictional usage numbers for the demo.
+      const r = rng(11)
+      const claimed = state.students.filter((s) => s.user_id).length + 22
+      const daily = Array.from({ length: 30 }, (_, i) => {
+        const d = new Date(Date.now() - (29 - i) * 86_400_000)
+        const ramp = Math.min(1, i / 12)
+        return {
+          day: d.toISOString().slice(0, 10),
+          active: Math.round((6 + r() * 14) * (0.4 + ramp)),
+          changes: Math.round(r() * 40 * ramp),
+          signups: i < 14 ? Math.round(r() * 5) : Math.round(r() * 2),
+        }
+      })
+      return {
+        cohort: state.students.filter((s) => s.role !== 'faculty').length,
+        accounts: claimed + 3,
+        claimed,
+        trackers: 24,
+        ratings: 412,
+        stars: 57,
+        notes: 33,
+        active: { d1: daily[29].active, d7: 26, d30: 31 },
+        daily,
+        profiles: { photo: 14, birthday: 11, country: 27, hobbies: 25, bio: 9, languages: 21 },
+        resources: {
+          events: state.calEvents.length,
+          upcoming_events: state.calEvents.filter((e) => new Date(e.ends_at ?? e.starts_at) >= new Date()).length,
+          rsvps: state.rsvps.length,
+          songs: state.songs.length,
+          notices: state.notices.length,
+        },
+      }
+    },
+
     async listCustomTags() {
       return clone(state.tags)
     },

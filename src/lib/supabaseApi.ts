@@ -12,6 +12,7 @@ import type {
   SessionUser,
   Song,
   Student,
+  UsageData,
 } from './types'
 
 const REL_COLUMNS = 'student_id, level, starred, note, updated_at'
@@ -151,6 +152,13 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     async deleteNotice(id) {
       check(await sb.from('notices').delete().eq('id', id))
+    },
+
+    async recordVisit() {
+      await sb.rpc('record_visit')
+    },
+    async adminUsage() {
+      return check(await sb.rpc('admin_usage')) as UsageData
     },
 
     async listCustomTags() {
