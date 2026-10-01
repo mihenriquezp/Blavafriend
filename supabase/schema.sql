@@ -90,6 +90,7 @@ create table if not exists public.students (
   nickname text check (char_length(nickname) <= 40),
   gender text check (gender in ('woman', 'man', 'non_binary', 'other', 'prefer_not_say')),
   undergrad_fields text[] not null default '{}',
+  role text not null default 'student' check (role in ('student', 'faculty')),
   user_id uuid unique references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -100,6 +101,9 @@ alter table public.students add column if not exists nickname text check (char_l
 alter table public.students add column if not exists gender text
   check (gender in ('woman', 'man', 'non_binary', 'other', 'prefer_not_say'));
 alter table public.students add column if not exists undergrad_fields text[] not null default '{}';
+-- 'faculty' = faculty or staff: listed in People but left out of every statistic.
+alter table public.students add column if not exists role text not null default 'student'
+  check (role in ('student', 'faculty'));
 
 alter table public.students enable row level security;
 
@@ -133,6 +137,9 @@ begin
      and not public.is_admin()
      and current_setting('blavafriend.claiming', true) is distinct from 'on' then
     raise exception 'Only an admin can change profile ownership';
+  end if;
+  if new.role is distinct from old.role and auth.uid() is not null and not public.is_admin() then
+    raise exception 'Only an admin can change whether someone is a student or faculty/staff';
   end if;
   new.updated_at := now();
   return new;
@@ -330,7 +337,8 @@ create policy "owner or admin deletes photo" on storage.objects
 -------------------------------------------------------------------------------
 -- Cohort view (anonymous aggregates only)
 -------------------------------------------------------------------------------
--- Everyone's levels feed a cohort-wide picture, without exposing who rated whom:
+-- Everyone's levels feed a cohort-wide picture, without exposing who rated whom.
+-- Only students count: faculty/staff and any ratings to or from them are left out.
 --   * only totals, weekly totals, an unnamed network and group-level mixing;
 --   * node numbers are shuffled on every call, so nodes can't be tracked over time;
 --   * the caller's own node only shows ties the caller created, so nobody can
@@ -357,12 +365,14 @@ begin
            (row_number() over (order by random()) - 1)::int as node,
            p_continents ->> s.country_origin as continent
     from public.students s
+    where s.role = 'student'
   ),
   dir as (
     select o.id as rater, r.student_id as ratee, r.level
     from public.relationships r
     join public.students o on o.user_id = r.owner_id
-    where r.level > 0 and r.student_id <> o.id
+    join public.students t on t.id = r.student_id
+    where r.level > 0 and r.student_id <> o.id and o.role = 'student' and t.role = 'student'
   ),
   pairs as (
     select least(rater, ratee) as a, greatest(rater, ratee) as b,
@@ -417,7 +427,9 @@ begin
           select distinct on (e.owner_id, e.student_id) o.id as rater, e.student_id as ratee, e.to_level as level
           from public.relationship_events e
           join public.students o on o.user_id = e.owner_id
+          join public.students t on t.id = e.student_id
           where e.created_at < w.week + interval '1 week' and e.student_id <> o.id
+            and o.role = 'student' and t.role = 'student'
           order by e.owner_id, e.student_id, e.created_at desc
         ) st
         where st.level > 0
@@ -427,7 +439,7 @@ begin
   )
   select jsonb_build_object(
     'students', (select count(*) from people),
-    'claimed', (select count(*) from public.students where user_id is not null),
+    'claimed', (select count(*) from public.students where user_id is not null and role = 'student'),
     'trackers', (select count(distinct rater) from dir),
     'pairs', jsonb_build_object(
       'met', (select count(*) from pairs),

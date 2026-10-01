@@ -21,6 +21,11 @@ export const FAMILY_OPTIONS = [
 
 export type FamilyStatus = (typeof FAMILY_OPTIONS)[number]['value']
 
+export const ROLE_OPTIONS = [
+  { value: 'student', label: 'Student' },
+  { value: 'faculty', label: 'Faculty / Staff' },
+] as const
+
 export const GENDER_OPTIONS = [
   { value: 'woman', label: 'Woman' },
   { value: 'man', label: 'Man' },

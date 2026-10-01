@@ -21,6 +21,8 @@ export interface Student {
   nickname: string | null
   gender: Gender | null
   undergrad_fields: string[]
+  /** 'faculty' = faculty or staff: listed in People, left out of every statistic. */
+  role: 'student' | 'faculty'
   user_id: string | null
   updated_at: string
 }

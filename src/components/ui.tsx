@@ -408,3 +408,12 @@ export function CountryPicker({
     </div>
   )
 }
+
+export function FacultyBadge({ role, className = 'ml-1.5' }: { role: 'student' | 'faculty'; className?: string }) {
+  if (role !== 'faculty') return null
+  return (
+    <span className={`${className} inline-block rounded-full bg-gold/20 px-2 py-0.5 align-middle text-[10px] font-semibold tracking-wide text-[#7a5f0e] uppercase`}>
+      Faculty / Staff
+    </span>
+  )
+}

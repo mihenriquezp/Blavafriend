@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
-import { COLLEGES, FAMILY_OPTIONS, GENDER_OPTIONS, HOBBY_GROUPS, POLICY_INTERESTS } from '../lib/options'
+import { COLLEGES, FAMILY_OPTIONS, GENDER_OPTIONS, HOBBY_GROUPS, POLICY_INTERESTS, ROLE_OPTIONS } from '../lib/options'
 import { useStore } from '../lib/store'
 import type { Student, StudentPatch } from '../lib/types'
 import { Avatar, CountryPicker, Field, TagPicker, btnPrimary, btnSecondary, inputCls } from './ui'
@@ -30,7 +30,7 @@ async function resizeImage(file: File, max = 640): Promise<Blob> {
 }
 
 export function ProfileForm({ student, onDone }: { student: Student; onDone?: () => void }) {
-  const { updateStudent, hobbyOptions, languageOptions, degreeOptions, addTag } = useStore()
+  const { updateStudent, hobbyOptions, languageOptions, degreeOptions, addTag, isAdmin } = useStore()
   const [draft, setDraft] = useState<Student>(student)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -66,6 +66,7 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
         nickname: draft.nickname?.trim() || null,
         gender: draft.gender,
         undergrad_fields: draft.undergrad_fields,
+        ...(isAdmin ? { role: draft.role } : {}),
       }
       await updateStudent(student.id, patch)
       setMsg({ ok: true, text: 'Saved ✓' })
@@ -123,6 +124,22 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
           <input maxLength={40} placeholder="What friends call you" {...text('nickname')} />
         </Field>
       </div>
+
+      {isAdmin && (
+        <Field label="Role (admin only)" hint="Faculty / staff appear in People but are left out of every statistic.">
+          <select
+            value={draft.role}
+            onChange={(e) => set('role', e.target.value as Student['role'])}
+            className={inputCls}
+          >
+            {ROLE_OPTIONS.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
 
       <Field label="Short intro" hint="A few lines about you: what you did before, what you're excited about.">
         <textarea rows={4} maxLength={1000} {...text('bio')} />
