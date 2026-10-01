@@ -131,6 +131,24 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
 
   return (
     <div>
+      <div className="mb-3 inline-flex rounded-full bg-white p-1 ring-1 ring-gray-200" role="tablist">
+        {[
+          ['/people', 'Everyone', false],
+          ['/wishlist', '★ Want to meet', true],
+        ].map(([to, label, isWish]) => (
+          <Link
+            key={to as string}
+            to={to as string}
+            role="tab"
+            aria-selected={wishlist === isWish}
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+              wishlist === isWish ? 'bg-oxford-900 text-white' : 'text-oxford-900 hover:bg-oxford-50'
+            }`}
+          >
+            {label as string}
+          </Link>
+        ))}
+      </div>
       <div className="mb-4 flex items-end justify-between gap-2">
         <div>
           <h1 className="font-display text-2xl font-bold text-oxford-900">{wishlist ? 'Want to meet' : 'People'}</h1>

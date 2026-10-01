@@ -13,6 +13,7 @@ import Login from './pages/Login'
 import MyProfile from './pages/MyProfile'
 import People from './pages/People'
 import Person from './pages/Person'
+import Resources from './pages/Resources'
 
 function Gate() {
   const { user, authLoading, dataLoading, students, me, error, reload } = useStore()
@@ -39,6 +40,7 @@ function Gate() {
         <Route path="people" element={<People />} />
         <Route path="wishlist" element={<People wishlist />} />
         <Route path="cohort" element={<Cohort />} />
+        <Route path="resources" element={<Resources />} />
         <Route path="people/:id" element={<Person />} />
         <Route path="me" element={<MyProfile />} />
         <Route path="admin" element={<Admin />} />

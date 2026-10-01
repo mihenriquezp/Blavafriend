@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
 import { COLLEGES, FAMILY_OPTIONS, GENDER_OPTIONS, HOBBY_GROUPS, POLICY_INTERESTS, ROLE_OPTIONS } from '../lib/options'
+import { MONTHS, daysInMonth } from '../lib/birthdays'
 import { useStore } from '../lib/store'
 import type { Student, StudentPatch } from '../lib/types'
 import { Avatar, CountryPicker, Field, TagPicker, btnPrimary, btnSecondary, inputCls } from './ui'
@@ -66,6 +67,9 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
         nickname: draft.nickname?.trim() || null,
         gender: draft.gender,
         undergrad_fields: draft.undergrad_fields,
+        birth_day: draft.birth_month ? draft.birth_day : null,
+        birth_month: draft.birth_day ? draft.birth_month : null,
+        birth_year: draft.birth_day && draft.birth_month ? draft.birth_year : null,
         ...(isAdmin ? { role: draft.role } : {}),
       }
       await updateStudent(student.id, patch)
@@ -173,6 +177,50 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
             onChange={(e) => set('age', e.target.value ? Number(e.target.value) : null)}
             className={inputCls}
           />
+        </Field>
+        <Field label="Birthday (optional)" hint="Day and month are enough. Only these are shown; the year is never shown." group>
+          <div className="grid grid-cols-[5.5rem_1fr_6rem] gap-2">
+            <select
+              aria-label="Birthday day"
+              value={draft.birth_day ?? ''}
+              onChange={(e) => set('birth_day', e.target.value ? Number(e.target.value) : null)}
+              className={inputCls}
+            >
+              <option value="">Day</option>
+              {Array.from({ length: draft.birth_month ? daysInMonth(draft.birth_month) : 31 }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Birthday month"
+              value={draft.birth_month ?? ''}
+              onChange={(e) => {
+                const m = e.target.value ? Number(e.target.value) : null
+                set('birth_month', m)
+                if (m && draft.birth_day && draft.birth_day > daysInMonth(m)) set('birth_day', daysInMonth(m))
+              }}
+              className={inputCls}
+            >
+              <option value="">Month</option>
+              {MONTHS.map((name, i) => (
+                <option key={name} value={i + 1}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <input
+              aria-label="Birthday year (optional)"
+              type="number"
+              min={1930}
+              max={2015}
+              placeholder="Year"
+              value={draft.birth_year ?? ''}
+              onChange={(e) => set('birth_year', e.target.value ? Number(e.target.value) : null)}
+              className={inputCls}
+            />
+          </div>
         </Field>
         <Field label="Gender (optional)">
           <select

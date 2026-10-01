@@ -43,10 +43,14 @@ export default function About() {
         <h2 className="pt-2 font-semibold text-oxford-900">What's shared with the cohort</h2>
         <ul className="list-disc space-y-1 pl-5">
           <li>
-            Your profile (name, photo, role, college, countries, interests, languages, intro and any social links you add)
+            Your profile (name, photo, role, college, countries, birthday (day and month only; the year is never shown), interests, languages, intro and any social links you add)
             is visible to classmates who sign in with their Oxford account.
           </li>
           <li>Everything except your name is optional, and you can edit or remove it at any time from your profile.</li>
+          <li>
+            In Resources, the events, songs and notices you post, and the events you say you’re going to, are visible to
+            classmates with your name. You can delete your posts at any time.
+          </li>
           <li>Profile photos are stored at an unguessable link that isn't listed anywhere public.</li>
         </ul>
         <h2 className="pt-2 font-semibold text-oxford-900">Your data</h2>

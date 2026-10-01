@@ -1,6 +1,18 @@
 import { createClient, type User } from '@supabase/supabase-js'
 import { COUNTRY_CONTINENT } from './options'
-import type { Api, CohortData, CustomTag, Relationship, RelationshipEvent, SessionUser, Student } from './types'
+import type {
+  Api,
+  CalEvent,
+  CohortData,
+  CustomTag,
+  Notice,
+  Relationship,
+  RelationshipEvent,
+  Rsvp,
+  SessionUser,
+  Song,
+  Student,
+} from './types'
 
 const REL_COLUMNS = 'student_id, level, starred, note, updated_at'
 
@@ -100,6 +112,45 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
 
     async getCohort() {
       return check(await sb.rpc('cohort_overview', { p_continents: COUNTRY_CONTINENT })) as CohortData
+    },
+
+    async listCalEvents() {
+      return check(await sb.from('cal_events').select('*').order('starts_at')) as CalEvent[]
+    },
+    async saveCalEvent(input, id) {
+      const q = id ? sb.from('cal_events').update(input).eq('id', id) : sb.from('cal_events').insert(input)
+      return check(await q.select().single()) as CalEvent
+    },
+    async deleteCalEvent(id) {
+      check(await sb.from('cal_events').delete().eq('id', id))
+    },
+    async listRsvps() {
+      return check(await sb.from('cal_rsvps').select('event_id, user_id, status')) as Rsvp[]
+    },
+    async setRsvp(eventId, status) {
+      const { data } = await sb.auth.getSession()
+      const user_id = data.session?.user.id
+      if (status === null) check(await sb.from('cal_rsvps').delete().eq('event_id', eventId).eq('user_id', user_id!))
+      else check(await sb.from('cal_rsvps').upsert({ event_id: eventId, user_id, status }, { onConflict: 'event_id,user_id' }))
+    },
+    async listSongs() {
+      return check(await sb.from('songs').select('*').order('created_at', { ascending: false })) as Song[]
+    },
+    async addSong(spotify_id, note) {
+      return check(await sb.from('songs').insert({ spotify_id, note }).select().single()) as Song
+    },
+    async deleteSong(id) {
+      check(await sb.from('songs').delete().eq('id', id))
+    },
+    async listNotices() {
+      return check(await sb.from('notices').select('*').order('created_at', { ascending: false })) as Notice[]
+    },
+    async saveNotice(input, id) {
+      const q = id ? sb.from('notices').update(input).eq('id', id) : sb.from('notices').insert(input)
+      return check(await q.select().single()) as Notice
+    },
+    async deleteNotice(id) {
+      check(await sb.from('notices').delete().eq('id', id))
     },
 
     async listCustomTags() {

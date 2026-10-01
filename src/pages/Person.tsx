@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Avatar, Card, Chip, CountryLabel, FacultyBadge, LevelPicker, StarButton, btnPrimary } from '../components/ui'
 import { FAMILY_OPTIONS, GENDER_OPTIONS, LEVELS, continentOf, type Level } from '../lib/options'
+import { formatBirthday } from '../lib/birthdays'
 import { callName } from '../lib/names'
 import { socialLinks } from '../lib/social'
 import { useStore } from '../lib/store'
@@ -109,6 +110,7 @@ export default function Person() {
           <Info label="Coming" value={family} />
           <Info label="Speaks" value={s.languages.join(', ')} />
           <Info label="Gender" value={gender} />
+          <Info label="Birthday" value={formatBirthday(s) && `🎂 ${formatBirthday(s)}`} />
         </dl>
 
         {s.policy_interests.length > 0 && (

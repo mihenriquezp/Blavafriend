@@ -91,6 +91,9 @@ create table if not exists public.students (
   gender text check (gender in ('woman', 'man', 'non_binary', 'other', 'prefer_not_say')),
   undergrad_fields text[] not null default '{}',
   role text not null default 'student' check (role in ('student', 'faculty')),
+  birth_day smallint check (birth_day between 1 and 31),
+  birth_month smallint check (birth_month between 1 and 12),
+  birth_year smallint check (birth_year between 1930 and 2015),
   user_id uuid unique references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -104,6 +107,10 @@ alter table public.students add column if not exists undergrad_fields text[] not
 -- 'faculty' = faculty or staff: listed in People but left out of every statistic.
 alter table public.students add column if not exists role text not null default 'student'
   check (role in ('student', 'faculty'));
+-- Birthday: day and month (shown in the app); the year is optional and never shown.
+alter table public.students add column if not exists birth_day smallint check (birth_day between 1 and 31);
+alter table public.students add column if not exists birth_month smallint check (birth_month between 1 and 12);
+alter table public.students add column if not exists birth_year smallint check (birth_year between 1930 and 2015);
 
 alter table public.students enable row level security;
 
@@ -456,3 +463,80 @@ begin
   return result;
 end;
 $$;
+
+-------------------------------------------------------------------------------
+-- Resources: events (with RSVPs), music recommendations and a notice board
+-------------------------------------------------------------------------------
+-- Visible to every member. Anyone can post; only the author or an admin can
+-- edit or delete. Links must be http(s).
+
+create table if not exists public.cal_events (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (char_length(title) between 1 and 120),
+  description text check (char_length(description) <= 2000),
+  starts_at timestamptz not null,
+  ends_at timestamptz,
+  location text check (char_length(location) <= 200),
+  link text check (link ~* '^https?://'),
+  created_by uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  check (ends_at is null or ends_at >= starts_at)
+);
+
+create table if not exists public.cal_rsvps (
+  event_id uuid not null references public.cal_events (id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  status text not null check (status in ('going', 'maybe')),
+  created_at timestamptz not null default now(),
+  primary key (event_id, user_id)
+);
+
+create table if not exists public.songs (
+  id uuid primary key default gen_random_uuid(),
+  spotify_id text not null check (spotify_id ~ '^[A-Za-z0-9]{22}$'),
+  note text check (char_length(note) <= 200),
+  created_by uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.notices (
+  id uuid primary key default gen_random_uuid(),
+  category text not null check (category in ('event', 'deal', 'opportunity', 'housing', 'for_sale', 'other')),
+  title text not null check (char_length(title) between 1 and 120),
+  body text check (char_length(body) <= 2000),
+  link text check (link ~* '^https?://'),
+  expires_on date,
+  created_by uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+alter table public.cal_events enable row level security;
+alter table public.cal_rsvps enable row level security;
+alter table public.songs enable row level security;
+alter table public.notices enable row level security;
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['cal_events', 'songs', 'notices'] loop
+    execute format('drop policy if exists "members read %1$s" on public.%1$I', t);
+    execute format('create policy "members read %1$s" on public.%1$I for select using (public.is_member())', t);
+    execute format('drop policy if exists "members post %1$s" on public.%1$I', t);
+    execute format('create policy "members post %1$s" on public.%1$I for insert with check (public.is_member() and created_by = auth.uid())', t);
+    execute format('drop policy if exists "author or admin edits %1$s" on public.%1$I', t);
+    execute format('create policy "author or admin edits %1$s" on public.%1$I for update using (public.is_member() and (created_by = auth.uid() or public.is_admin())) with check (public.is_member() and (created_by = auth.uid() or public.is_admin()))', t);
+    execute format('drop policy if exists "author or admin deletes %1$s" on public.%1$I', t);
+    execute format('create policy "author or admin deletes %1$s" on public.%1$I for delete using (public.is_member() and (created_by = auth.uid() or public.is_admin()))', t);
+  end loop;
+end;
+$$;
+
+drop policy if exists "members read rsvps" on public.cal_rsvps;
+create policy "members read rsvps" on public.cal_rsvps
+  for select using (public.is_member());
+
+drop policy if exists "member manages own rsvp" on public.cal_rsvps;
+create policy "member manages own rsvp" on public.cal_rsvps
+  for all using (public.is_member() and user_id = auth.uid())
+  with check (public.is_member() and user_id = auth.uid());
