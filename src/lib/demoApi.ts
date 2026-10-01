@@ -15,7 +15,7 @@ import type {
   Student,
 } from './types'
 
-const KEY = 'blavafriend-demo-v4'
+const KEY = 'blavafriend-demo-v6'
 const DEMO_USER: SessionUser = { id: 'demo-user', email: 'demo1234@ox.ac.uk' }
 
 interface DemoState {
@@ -88,6 +88,10 @@ function seed(): DemoState {
       gender: r() < 0.9 ? pick(GENDER_OPTIONS.slice(0, 3)).value : null,
       undergrad_fields: some(UNDERGRAD_FIELDS, 1, 2),
       role: i >= FIRST.length - 3 ? 'faculty' : 'student',
+      // Two fictional classmates celebrate today so the birthday pop-up shows in the demo.
+      birth_day: i === 4 || i === 9 ? new Date().getDate() : i % 5 === 0 ? null : 1 + (i * 7) % 28,
+      birth_month: i === 4 || i === 9 ? new Date().getMonth() + 1 : i % 5 === 0 ? null : 1 + (i * 5) % 12,
+      birth_year: null,
       user_id: null,
       updated_at: new Date().toISOString(),
     }
@@ -153,6 +157,7 @@ function blankStudent(full_name: string, user_id: string | null): Student {
     country_residence: null, job_title: null, college: null, family_status: null,
     policy_interests: [], hobbies: [], languages: [], bio: null, photo_url: null, linkedin: null,
     instagram: null, x_handle: null, whatsapp: null, nickname: null, gender: null, undergrad_fields: [], role: 'student',
+    birth_day: null, birth_month: null, birth_year: null,
     updated_at: new Date().toISOString(),
   }
 }

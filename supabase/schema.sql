@@ -91,6 +91,9 @@ create table if not exists public.students (
   gender text check (gender in ('woman', 'man', 'non_binary', 'other', 'prefer_not_say')),
   undergrad_fields text[] not null default '{}',
   role text not null default 'student' check (role in ('student', 'faculty')),
+  birth_day smallint check (birth_day between 1 and 31),
+  birth_month smallint check (birth_month between 1 and 12),
+  birth_year smallint check (birth_year between 1930 and 2015),
   user_id uuid unique references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -104,6 +107,10 @@ alter table public.students add column if not exists undergrad_fields text[] not
 -- 'faculty' = faculty or staff: listed in People but left out of every statistic.
 alter table public.students add column if not exists role text not null default 'student'
   check (role in ('student', 'faculty'));
+-- Birthday: day and month (shown in the app); the year is optional and never shown.
+alter table public.students add column if not exists birth_day smallint check (birth_day between 1 and 31);
+alter table public.students add column if not exists birth_month smallint check (birth_month between 1 and 12);
+alter table public.students add column if not exists birth_year smallint check (birth_year between 1930 and 2015);
 
 alter table public.students enable row level security;
 

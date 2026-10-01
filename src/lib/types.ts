@@ -23,6 +23,10 @@ export interface Student {
   undergrad_fields: string[]
   /** 'faculty' = faculty or staff: listed in People, left out of every statistic. */
   role: 'student' | 'faculty'
+  /** Birthday: day and month are shown in the app; the year is optional and never shown. */
+  birth_day: number | null
+  birth_month: number | null
+  birth_year: number | null
   user_id: string | null
   updated_at: string
 }

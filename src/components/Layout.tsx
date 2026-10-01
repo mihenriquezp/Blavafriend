@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useStore } from '../lib/store'
+import { BirthdayPopup } from './BirthdayPopup'
 import { Avatar } from './ui'
 
 const NAV = [
@@ -76,6 +77,8 @@ export function Layout() {
           </>
         )}
       </footer>
+
+      <BirthdayPopup />
 
       {notice && (
         <div
