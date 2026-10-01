@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { ProfileForm } from '../components/ProfileForm'
 import { Avatar, Card, FacultyBadge, btnPrimary, inputCls } from '../components/ui'
 import { api } from '../lib/api'
+import { UsagePanel } from '../components/UsagePanel'
 import { useStore } from '../lib/store'
 import { matchesName } from './People'
 
@@ -36,6 +37,8 @@ export default function Admin() {
           levels or notes from here.
         </p>
       </div>
+
+      <UsagePanel />
 
       <Card>
         <form

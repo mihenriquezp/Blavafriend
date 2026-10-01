@@ -540,3 +540,87 @@ drop policy if exists "member manages own rsvp" on public.cal_rsvps;
 create policy "member manages own rsvp" on public.cal_rsvps
   for all using (public.is_member() and user_id = auth.uid())
   with check (public.is_member() and user_id = auth.uid());
+
+-------------------------------------------------------------------------------
+-- Usage stats for the admin (aggregates only)
+-------------------------------------------------------------------------------
+-- One row per account per day the app was opened, to count active users.
+-- Nothing about what people did is recorded.
+create table if not exists public.app_visits (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  day date not null default current_date,
+  primary key (user_id, day)
+);
+
+alter table public.app_visits enable row level security;
+-- No policies: written only through record_visit(), read only through admin_usage().
+
+create or replace function public.record_visit()
+returns void
+language sql volatile security definer set search_path = public
+as $$
+  insert into public.app_visits (user_id, day)
+  select auth.uid(), current_date
+  where public.is_member()
+  on conflict do nothing;
+$$;
+
+-- Totals only: no names, no per-person activity, no individual ratings.
+create or replace function public.admin_usage()
+returns jsonb
+language plpgsql stable security definer set search_path = public
+as $$
+declare
+  result jsonb;
+begin
+  if not public.is_admin() then
+    raise exception 'Only admins can see usage stats';
+  end if;
+
+  with
+  students as (select * from public.students where role = 'student'),
+  claimed as (select * from students where user_id is not null),
+  days as (
+    select d::date as day from generate_series(current_date - 29, current_date, interval '1 day') d
+  )
+  select jsonb_build_object(
+    'cohort', (select count(*) from students),
+    'accounts', (select count(*) from auth.users),
+    'claimed', (select count(*) from claimed),
+    'trackers', (select count(distinct r.owner_id) from public.relationships r where r.level > 0 or r.starred),
+    'ratings', (select count(*) from public.relationships where level > 0),
+    'stars', (select count(*) from public.relationships where starred),
+    'notes', (select count(*) from public.relationships where note is not null and note <> ''),
+    'active', jsonb_build_object(
+      'd1', (select count(distinct user_id) from public.app_visits where day >= current_date),
+      'd7', (select count(distinct user_id) from public.app_visits where day > current_date - 7),
+      'd30', (select count(distinct user_id) from public.app_visits where day > current_date - 30)
+    ),
+    'daily', (
+      select jsonb_agg(jsonb_build_object(
+        'day', d.day,
+        'active', (select count(*) from public.app_visits v where v.day = d.day),
+        'changes', (select count(*) from public.relationship_events e where e.created_at::date = d.day),
+        'signups', (select count(*) from auth.users u where u.created_at::date = d.day)
+      ) order by d.day)
+      from days d
+    ),
+    'profiles', jsonb_build_object(
+      'photo', (select count(*) from claimed where photo_url is not null),
+      'birthday', (select count(*) from claimed where birth_day is not null and birth_month is not null),
+      'country', (select count(*) from claimed where country_origin is not null),
+      'hobbies', (select count(*) from claimed where cardinality(hobbies) > 0),
+      'bio', (select count(*) from claimed where bio is not null and bio <> ''),
+      'languages', (select count(*) from claimed where cardinality(languages) > 0)
+    ),
+    'resources', jsonb_build_object(
+      'events', (select count(*) from public.cal_events),
+      'upcoming_events', (select count(*) from public.cal_events where coalesce(ends_at, starts_at) >= now()),
+      'rsvps', (select count(*) from public.cal_rsvps),
+      'songs', (select count(*) from public.songs),
+      'notices', (select count(*) from public.notices where expires_on is null or expires_on >= current_date)
+    )
+  ) into result;
+  return result;
+end;
+$$;

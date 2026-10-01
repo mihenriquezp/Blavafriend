@@ -52,6 +52,10 @@ export default function About() {
             classmates with your name. You can delete your posts at any time.
           </li>
           <li>Profile photos are stored at an unguessable link that isn't listed anywhere public.</li>
+          <li>
+            To count how many people use the app, it records which days your account opened it, nothing about what you did.
+            In the app, the admin only sees totals (e.g. “26 active this week”), never who was active.
+          </li>
         </ul>
         <h2 className="pt-2 font-semibold text-oxford-900">Your data</h2>
         <p>
