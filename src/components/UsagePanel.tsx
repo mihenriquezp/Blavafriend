@@ -41,7 +41,10 @@ export function UsagePanel() {
         <Tile value={weekChanges} label="level changes" sub="in the last 7 days" />
       </div>
 
-      <h3 className="mt-5 mb-2 text-sm font-semibold text-oxford-900">Daily active users, last 30 days</h3>
+      <h3 className="mt-5 mb-0.5 text-sm font-semibold text-oxford-900">Daily active users, last 30 days</h3>
+      <p className="mb-2 text-[11px] text-gray-500">
+        Active = opened the app or did something in it (changed a level, posted, RSVP’d). Days are Oxford time.
+      </p>
       <DailyBars days={data.daily} pick={(d) => d.active} unit="active" />
 
       <h3 className="mt-5 mb-2 text-sm font-semibold text-oxford-900">Level changes per day</h3>
