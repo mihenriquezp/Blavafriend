@@ -3,6 +3,8 @@ import { ProgressChart } from '../components/charts'
 import { Constellation } from '../components/Constellation'
 import { Card, Spinner } from '../components/ui'
 import { WorldMap, shareColor } from '../components/WorldMap'
+import { WhoWeAre } from '../components/WhoWeAre'
+import { useStore } from '../lib/store'
 import { api } from '../lib/api'
 import type { CohortData } from '../lib/types'
 
@@ -20,6 +22,8 @@ export default function Cohort() {
   const [error, setError] = useState<string | null>(null)
   const [minLevel, setMinLevel] = useState(1)
   const [asTable, setAsTable] = useState(false)
+  const { students } = useStore()
+  const cohortStudents = useMemo(() => students.filter((s) => s.role !== 'faculty'), [students])
 
   useEffect(() => {
     api.getCohort().then(setData, (e) => setError(e instanceof Error ? e.message : String(e)))
@@ -39,9 +43,11 @@ export default function Cohort() {
       <div>
         <h1 className="font-display text-2xl font-bold text-oxford-900">Our cohort 🌐</h1>
         <p className="text-sm text-gray-500">
-          How well do we all know each other? Built from everyone’s levels, completely anonymous.
+          Who we are, and how well we all know each other. Connections are counted anonymously.
         </p>
       </div>
+
+      <WhoWeAre students={cohortStudents} />
 
       <Card>
         <div className="text-sm font-medium text-gray-500">Cohort Connection Index</div>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { ProfileForm } from '../components/ProfileForm'
-import { Avatar, Card, btnPrimary, inputCls } from '../components/ui'
+import { Avatar, Card, FacultyBadge, btnPrimary, inputCls } from '../components/ui'
 import { api } from '../lib/api'
 import { useStore } from '../lib/store'
 import { matchesName } from './People'
@@ -65,7 +65,10 @@ export default function Admin() {
             <div className="flex items-center gap-3 p-3">
               <Avatar name={s.full_name} url={s.photo_url} size={36} />
               <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">{s.full_name}</div>
+                <div className="truncate font-medium">
+                  {s.full_name}
+                  <FacultyBadge role={s.role} />
+                </div>
                 <div className="text-xs text-gray-500">{s.user_id ? 'Claimed' : 'Not claimed yet'}</div>
               </div>
               <button className="text-sm text-oxford-500 underline" onClick={() => setEditing(editing === s.id ? null : s.id)}>

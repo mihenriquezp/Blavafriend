@@ -10,7 +10,7 @@ import type { Level } from '../lib/options'
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0)
 
 export default function Dashboard() {
-  const { me, classmates, relationships, events } = useStore()
+  const { me, peers: classmates, relationships, events } = useStore()
   const [dim, setDim] = useState<Dimension>('continent')
 
   const counts = useMemo(() => levelCounts(classmates, relationships), [classmates, relationships])

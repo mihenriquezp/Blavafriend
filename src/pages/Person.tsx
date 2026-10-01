@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Avatar, Card, Chip, CountryLabel, LevelPicker, StarButton, btnPrimary } from '../components/ui'
+import { Avatar, Card, Chip, CountryLabel, FacultyBadge, LevelPicker, StarButton, btnPrimary } from '../components/ui'
 import { FAMILY_OPTIONS, GENDER_OPTIONS, LEVELS, continentOf, type Level } from '../lib/options'
 import { callName } from '../lib/names'
 import { socialLinks } from '../lib/social'
@@ -74,7 +74,10 @@ export default function Person() {
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <h1 className="font-display text-2xl font-bold text-oxford-900">{s.full_name}</h1>
+                <h1 className="font-display text-2xl font-bold text-oxford-900">
+                  {s.full_name}
+                  <FacultyBadge role={s.role} />
+                </h1>
                 {s.nickname && <p className="text-sm text-gray-500">Goes by “{s.nickname}”</p>}
               </div>
               <StarButton

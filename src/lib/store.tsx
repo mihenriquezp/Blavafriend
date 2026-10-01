@@ -21,6 +21,8 @@ interface Store {
   students: Student[]
   me: Student | null
   classmates: Student[]
+  /** Classmates who count in statistics: students only (no faculty/staff). */
+  peers: Student[]
   relationships: Map<string, Relationship>
   events: RelationshipEvent[]
   hobbyOptions: string[]
@@ -102,6 +104,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const me = useMemo(() => (user ? (students.find((s) => s.user_id === user.id) ?? null) : null), [students, user])
   const classmates = useMemo(() => students.filter((s) => s.id !== me?.id), [students, me])
+  const peers = useMemo(() => classmates.filter((s) => s.role !== 'faculty'), [classmates])
   const relationships = useMemo(() => new Map(rels.map((r) => [r.student_id, r])), [rels])
 
   const setRelationship = useCallback(
@@ -198,6 +201,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     students,
     me,
     classmates,
+    peers,
     relationships,
     events,
     hobbyOptions,

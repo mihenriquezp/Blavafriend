@@ -4,7 +4,7 @@ import { COLLEGES, COUNTRIES, GENDER_OPTIONS, HOBBIES, LANGUAGES, POLICY_INTERES
 import { computeCohort, type Rating } from './cohort'
 import type { Api, CustomTag, Relationship, RelationshipEvent, SessionUser, Student } from './types'
 
-const KEY = 'blavafriend-demo-v2'
+const KEY = 'blavafriend-demo-v3'
 const DEMO_USER: SessionUser = { id: 'demo-user', email: 'demo1234@ox.ac.uk' }
 
 interface DemoState {
@@ -57,7 +57,7 @@ function seed(): DemoState {
       age: r() < 0.8 ? 23 + Math.floor(r() * 14) : null,
       country_origin: country,
       country_residence: r() < 0.8 ? country : pick(COUNTRIES),
-      job_title: pick(ROLES),
+      job_title: i >= FIRST.length - 3 ? 'Professor of Public Policy' : pick(ROLES),
       college: pick(COLLEGES),
       family_status: r() < 0.75 ? 'none' : pick(['partner', 'family', 'partner_family'] as const),
       policy_interests: some(POLICY_INTERESTS, 1, 3),
@@ -72,6 +72,7 @@ function seed(): DemoState {
       nickname: r() < 0.3 ? first.slice(0, 3) : null,
       gender: r() < 0.9 ? pick(GENDER_OPTIONS.slice(0, 3)).value : null,
       undergrad_fields: some(UNDERGRAD_FIELDS, 1, 2),
+      role: i >= FIRST.length - 3 ? 'faculty' : 'student',
       user_id: null,
       updated_at: new Date().toISOString(),
     }
@@ -106,7 +107,7 @@ function blankStudent(full_name: string, user_id: string | null): Student {
     id: `demo-${crypto.randomUUID()}`, full_name, user_id, age: null, country_origin: null,
     country_residence: null, job_title: null, college: null, family_status: null,
     policy_interests: [], hobbies: [], languages: [], bio: null, photo_url: null, linkedin: null,
-    instagram: null, x_handle: null, whatsapp: null, nickname: null, gender: null, undergrad_fields: [],
+    instagram: null, x_handle: null, whatsapp: null, nickname: null, gender: null, undergrad_fields: [], role: 'student',
     updated_at: new Date().toISOString(),
   }
 }

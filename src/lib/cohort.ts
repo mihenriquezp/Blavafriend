@@ -40,7 +40,11 @@ function pairLevels(ratings: Rating[]) {
   return pairs
 }
 
-export function computeCohort(students: Student[], ratings: Rating[], meId: string | null, now = new Date()): CohortData {
+export function computeCohort(everyone: Student[], allRatings: Rating[], meId: string | null, now = new Date()): CohortData {
+  // Only students count: faculty/staff and ratings to or from them are left out.
+  const students = everyone.filter((s) => s.role !== 'faculty')
+  const ids = new Set(students.map((s) => s.id))
+  const ratings = allRatings.filter((r) => ids.has(r.rater) && ids.has(r.ratee))
   const node = new Map(shuffle(students).map((s, i) => [s.id, i]))
   const byId = new Map(students.map((s) => [s.id, s]))
   const pairs = pairLevels(ratings)
@@ -109,7 +113,7 @@ export function computeCohort(students: Student[], ratings: Rating[], meId: stri
       great: levels.filter((l) => l >= 3).length,
       friends: levels.filter((l) => l === 4).length,
     },
-    me: meId ? (node.get(meId) ?? null) : null,
+    me: meId && ids.has(meId) ? (node.get(meId) ?? null) : null,
     edges,
     weekly,
     groups,
