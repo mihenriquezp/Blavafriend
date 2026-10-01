@@ -1,17 +1,17 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { FAMILY_OPTIONS, GENDER_OPTIONS, continentOf } from '../lib/options'
 import type { Student } from '../lib/types'
-import { Card, Flag } from './ui'
+import { Flag } from './ui'
 
 type Dim = 'country' | 'policy' | 'hobby' | 'degree' | 'language' | 'college'
 
-const DIMS: { value: Dim; label: string; get: (s: Student) => string[] }[] = [
-  { value: 'country', label: 'Countries', get: (s) => (s.country_origin ? [s.country_origin] : []) },
-  { value: 'policy', label: 'Policy interests', get: (s) => s.policy_interests },
-  { value: 'hobby', label: 'Hobbies', get: (s) => s.hobbies },
-  { value: 'degree', label: 'Undergrad', get: (s) => s.undergrad_fields },
-  { value: 'language', label: 'Languages', get: (s) => s.languages },
-  { value: 'college', label: 'Colleges', get: (s) => (s.college ? [s.college] : []) },
+const DIMS: { value: Dim; label: string; emoji: string; get: (s: Student) => string[] }[] = [
+  { value: 'country', label: 'Countries', emoji: '🌍', get: (s) => (s.country_origin ? [s.country_origin] : []) },
+  { value: 'policy', label: 'Policy interests', emoji: '🏛️', get: (s) => s.policy_interests },
+  { value: 'hobby', label: 'Hobbies', emoji: '🎾', get: (s) => s.hobbies },
+  { value: 'degree', label: 'Undergrad', emoji: '🎓', get: (s) => s.undergrad_fields },
+  { value: 'language', label: 'Languages', emoji: '🗣️', get: (s) => s.languages },
+  { value: 'college', label: 'Colleges', emoji: '🏰', get: (s) => (s.college ? [s.college] : []) },
 ]
 
 const fmt = (n: number) => n.toLocaleString('en-GB')
@@ -54,23 +54,35 @@ export function WhoWeAre({ students }: { students: Student[] }) {
   const { rows, answered } = useMemo(() => countBy(students, current.get), [students, current])
   const shown = showAll ? rows : rows.slice(0, 8)
   const max = rows[0]?.[1] ?? 1
+  // Ties share a medal: rank by distinct counts.
+  const topCounts = [...new Set(rows.map(([, n]) => n))].slice(0, 3)
+  const medal = (n: number) => (['🥇', '🥈', '🥉'] as const)[topCounts.indexOf(n)] ?? null
   const { ages } = facts
 
   return (
-    <Card>
-      <h2 className="font-semibold text-oxford-900">Who we are</h2>
-      <p className="mb-3 text-xs text-gray-500">From everyone’s profiles (students only). Grows as more of us fill them in.</p>
-
-      <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-5">
-        <Big value={students.length} label="students" />
-        <Big value={facts.countries.size} label="countries" />
-        <Big value={facts.continents.size} label="continents" />
-        <Big value={facts.languages.size} label="languages" />
-        <Big value={facts.colleges.size} label="colleges" className="hidden sm:block" />
+    <section className="overflow-hidden rounded-2xl bg-gradient-to-br from-oxford-900 via-oxford-700 to-oxford-500 p-4 text-white shadow-md sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-2xl font-bold">Who we are ✨</h2>
+          <p className="mt-0.5 text-xs text-white/70">
+            A portrait of the cohort from everyone’s profiles (students only). It grows as more of us fill them in.
+          </p>
+        </div>
+        <span className="text-4xl leading-none" aria-hidden>
+          🌍
+        </span>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-        <Fact title="Age">
+      <div className="mt-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-5">
+        <Big emoji="🎓" value={students.length} label="students" />
+        <Big emoji="🗺️" value={facts.countries.size} label="countries" />
+        <Big emoji="🧭" value={facts.continents.size} label="continents" />
+        <Big emoji="🗣️" value={facts.languages.size} label="languages" />
+        <Big emoji="🏛️" value={facts.colleges.size} label="colleges" className="hidden sm:block" />
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+        <Fact emoji="🎂" title="Age">
           {ages.length >= 5 ? (
             <>
               Most of us are <b>{Math.round(quantile(ages, 0.25))}–{Math.round(quantile(ages, 0.75))}</b>, median{' '}
@@ -81,7 +93,7 @@ export function WhoWeAre({ students }: { students: Student[] }) {
           )}
           <Coverage n={ages.length} of={students.length} />
         </Fact>
-        <Fact title="Gender">
+        <Fact emoji="🧑‍🤝‍🧑" title="Gender">
           {facts.genders.answered ? (
             <span>
               {facts.genders.rows
@@ -93,11 +105,11 @@ export function WhoWeAre({ students }: { students: Student[] }) {
           )}
           <Coverage n={facts.genders.answered} of={students.length} />
         </Fact>
-        <Fact title="Coming with partner or family">
+        <Fact emoji="👨‍👩‍👧" title="With partner or family">
           {facts.family.length ? (
             <>
               <b>{Math.round((facts.withFamily / facts.family.length) * 100)}%</b> of us
-              <span className="text-gray-500">
+              <span className="text-white/70">
                 {' '}
                 (
                 {FAMILY_OPTIONS.filter((f) => f.value !== 'none')
@@ -113,77 +125,85 @@ export function WhoWeAre({ students }: { students: Student[] }) {
         </Fact>
       </div>
 
-      <div className="-mx-1 mt-5 mb-3 flex gap-1 overflow-x-auto px-1 pb-1" role="tablist">
-        {DIMS.map((d) => (
-          <button
-            key={d.value}
-            role="tab"
-            aria-selected={dim === d.value}
-            onClick={() => {
-              setDim(d.value)
-              setShowAll(false)
-            }}
-            className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
-              dim === d.value ? 'bg-oxford-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            {d.label}
-          </button>
-        ))}
-      </div>
-      {rows.length ? (
-        <ul className="space-y-1.5">
-          {shown.map(([label, n]) => (
-            <li key={label} className="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3 text-sm sm:grid-cols-[minmax(0,14rem)_1fr_auto]">
-              <span className="truncate text-gray-700" title={label}>
-                {dim === 'country' && <Flag country={label} className="mr-1.5" />}
-                {label}
-              </span>
-              <span className="h-3 overflow-hidden rounded bg-gray-100">
-                <span className="block h-full rounded bg-oxford-500" style={{ width: `${(n / max) * 100}%` }} />
-              </span>
-              <span className="w-8 text-right text-xs text-gray-600 tabular-nums">{n}</span>
-            </li>
+      <div className="mt-4 rounded-xl bg-white p-3 text-oxford-900 sm:p-4">
+        <div className="-mx-1 mb-3 flex gap-1 overflow-x-auto px-1 pb-1" role="tablist">
+          {DIMS.map((d) => (
+            <button
+              key={d.value}
+              role="tab"
+              aria-selected={dim === d.value}
+              onClick={() => {
+                setDim(d.value)
+                setShowAll(false)
+              }}
+              className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
+                dim === d.value ? 'bg-gold text-oxford-900' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <span aria-hidden>{d.emoji}</span> {d.label}
+            </button>
           ))}
-        </ul>
-      ) : (
-        <p className="text-sm text-gray-500">Nobody has added this yet.</p>
-      )}
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
-        <span>
-          {fmt(answered)} of {fmt(students.length)} have filled this in
-        </span>
-        {rows.length > 8 && (
-          <button className="text-oxford-500 underline" onClick={() => setShowAll((v) => !v)}>
-            {showAll ? 'Show top 8' : `Show all ${rows.length}`}
-          </button>
+        </div>
+        {rows.length ? (
+          <ul className="space-y-1.5">
+            {shown.map(([label, n]) => (
+              <li key={label} className="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3 text-sm sm:grid-cols-[minmax(0,14rem)_1fr_auto]">
+                <span className="truncate text-gray-700" title={label}>
+                  {medal(n) && <span aria-hidden>{medal(n)} </span>}
+                  {dim === 'country' && <Flag country={label} className="mr-1.5" />}
+                  {label}
+                </span>
+                <span className="h-3 overflow-hidden rounded-full bg-gray-100">
+                  <span className="block h-full rounded-full bg-gold" style={{ width: `${(n / max) * 100}%` }} />
+                </span>
+                <span className="w-8 text-right text-xs text-gray-600 tabular-nums">{n}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-gray-500">Nobody has added this yet.</p>
         )}
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+          <span>
+            {fmt(answered)} of {fmt(students.length)} have filled this in
+          </span>
+          {rows.length > 8 && (
+            <button className="text-oxford-500 underline" onClick={() => setShowAll((v) => !v)}>
+              {showAll ? 'Show top 8' : `Show all ${rows.length}`}
+            </button>
+          )}
+        </div>
       </div>
-    </Card>
+    </section>
   )
 }
 
-function Big({ value, label, className = '' }: { value: number; label: string; className?: string }) {
+function Big({ emoji, value, label, className = '' }: { emoji: string; value: number; label: string; className?: string }) {
   return (
-    <div className={`rounded-xl bg-oxford-50 px-2 py-2.5 ${className}`}>
-      <div className="font-display text-2xl font-bold text-oxford-900 tabular-nums">{fmt(value)}</div>
-      <div className="text-[11px] text-gray-600">{label}</div>
+    <div className={`rounded-xl bg-white/10 px-2 py-2.5 ring-1 ring-white/15 ${className}`}>
+      <div className="text-xl leading-none" aria-hidden>
+        {emoji}
+      </div>
+      <div className="mt-1 font-display text-2xl font-bold tabular-nums">{fmt(value)}</div>
+      <div className="text-[11px] text-white/75">{label}</div>
     </div>
   )
 }
 
-function Fact({ title, children }: { title: string; children: ReactNode }) {
+function Fact({ emoji, title, children }: { emoji: string; title: string; children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-gray-100 p-3">
-      <div className="mb-0.5 text-xs font-semibold text-gray-500 uppercase">{title}</div>
-      <div className="text-gray-800">{children}</div>
+    <div className="rounded-xl bg-white/10 p-3 ring-1 ring-white/15">
+      <div className="mb-0.5 text-xs font-semibold tracking-wide text-white/70 uppercase">
+        <span aria-hidden>{emoji}</span> {title}
+      </div>
+      <div>{children}</div>
     </div>
   )
 }
 
 function Coverage({ n, of }: { n: number; of: number }) {
   return (
-    <div className="mt-1 text-[11px] text-gray-400">
+    <div className="mt-1 text-[11px] text-white/55">
       based on {n} of {of}
     </div>
   )
