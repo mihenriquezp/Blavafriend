@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Avatar, Chip, CountryLabel, FacultyBadge, LevelBadge, LevelPicker, StarButton, inputCls } from '../components/ui'
-import { CONTINENTS, COUNTRIES, FAMILY_OPTIONS, GENDER_OPTIONS, ROLE_OPTIONS, LEVELS, POLICY_INTERESTS, continentOf, type Level } from '../lib/options'
+import { CONTINENTS, COUNTRIES, FAMILY_OPTIONS, GENDER_OPTIONS, LEVELS, POLICY_INTERESTS, continentOf, type Level } from '../lib/options'
 import { useStore } from '../lib/store'
 import type { Student } from '../lib/types'
 
@@ -45,7 +45,15 @@ function matchesText(s: Student, q: string) {
 type Sort = 'name' | 'level-asc' | 'level-desc' | 'recent'
 
 const MULTI_KEYS = ['policy', 'hobby', 'lang', 'degree', 'level'] as const
-const SINGLE_KEYS = ['country', 'residence', 'continent', 'college', 'family', 'gender', 'role'] as const
+const SINGLE_KEYS = ['country', 'residence', 'continent', 'college', 'family', 'gender'] as const
+
+type Who = 'students' | 'faculty' | 'all'
+const VIEWS: { to: string; label: string; who: Who | 'wishlist' }[] = [
+  { to: '/people', label: 'Students', who: 'students' },
+  { to: '/people?who=faculty', label: 'Faculty', who: 'faculty' },
+  { to: '/people?who=all', label: 'All', who: 'all' },
+  { to: '/wishlist', label: '★ Want to meet', who: 'wishlist' },
+]
 
 export default function People({ wishlist = false }: { wishlist?: boolean }) {
   const { classmates, relationships, setRelationship, hobbyOptions, languageOptions, degreeOptions } = useStore()
@@ -56,6 +64,12 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
   const q = params.get('q') ?? ''
   const sort = (params.get('sort') as Sort) ?? 'name'
   const starredOnly = wishlist || params.get('starred') === '1'
+  // Students by default; "Want to meet" covers students and faculty alike.
+  const who: Who = wishlist ? 'all' : ((['faculty', 'all'] as const).find((w) => w === params.get('who')) ?? 'students')
+  const pool = useMemo(
+    () => (who === 'all' ? classmates : classmates.filter((s) => (who === 'faculty' ? s.role === 'faculty' : s.role !== 'faculty'))),
+    [classmates, who],
+  )
   const multi = (k: (typeof MULTI_KEYS)[number]) => params.getAll(k)
   const single = (k: (typeof SINGLE_KEYS)[number]) => params.get(k) ?? ''
 
@@ -96,7 +110,7 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
     const langs = multi('lang')
     const degrees = multi('degree')
     const levels = multi('level').map(Number)
-    const list = classmates.filter((s) => {
+    const list = pool.filter((s) => {
       if (q && !matchesText(s, q)) return false
       if (starredOnly && !relationships.get(s.id)?.starred) return false
       if (single('country') && s.country_origin !== single('country')) return false
@@ -105,7 +119,6 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
       if (single('college') && s.college !== single('college')) return false
       if (single('family') && s.family_status !== single('family')) return false
       if (single('gender') && s.gender !== single('gender')) return false
-      if (single('role') && s.role !== single('role')) return false
       if (degrees.length && !degrees.some((d) => s.undergrad_fields.includes(d))) return false
       if (policies.length && !policies.some((p) => s.policy_interests.includes(p))) return false
       if (hobbies.length && !hobbies.some((h) => s.hobbies.includes(h))) return false
@@ -122,7 +135,7 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
       return byName(a, b)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classmates, relationships, params, starredOnly])
+  }, [pool, relationships, params, starredOnly])
 
   const activeCount =
     MULTI_KEYS.reduce((n, k) => n + params.getAll(k).length, 0) +
@@ -131,31 +144,34 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
 
   return (
     <div>
-      <div className="mb-3 inline-flex rounded-full bg-white p-1 ring-1 ring-gray-200" role="tablist">
-        {[
-          ['/people', 'Everyone', false],
-          ['/wishlist', '★ Want to meet', true],
-        ].map(([to, label, isWish]) => (
-          <Link
-            key={to as string}
-            to={to as string}
-            role="tab"
-            aria-selected={wishlist === isWish}
-            className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
-              wishlist === isWish ? 'bg-oxford-900 text-white' : 'text-oxford-900 hover:bg-oxford-50'
-            }`}
-          >
-            {label as string}
-          </Link>
-        ))}
+      <div className="mb-3 inline-flex max-w-full overflow-x-auto rounded-full bg-white p-1 ring-1 ring-gray-200" role="tablist">
+        {VIEWS.map((v) => {
+          const active = wishlist ? v.who === 'wishlist' : v.who === who
+          return (
+            <Link
+              key={v.to}
+              to={v.to}
+              replace
+              role="tab"
+              aria-selected={active}
+              className={`shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-[13px] font-semibold sm:px-4 sm:text-sm ${
+                active ? 'bg-oxford-900 text-white' : 'text-oxford-900 hover:bg-oxford-50'
+              }`}
+            >
+              {v.label}
+            </Link>
+          )
+        })}
       </div>
       <div className="mb-4 flex items-end justify-between gap-2">
         <div>
-          <h1 className="font-display text-2xl font-bold text-oxford-900">{wishlist ? 'Want to meet' : 'People'}</h1>
+          <h1 className="font-display text-2xl font-bold text-oxford-900">
+            {wishlist ? 'Want to meet' : who === 'faculty' ? 'Faculty' : who === 'all' ? 'Everyone' : 'Students'}
+          </h1>
           <p className="text-sm text-gray-500">
             {wishlist
-              ? 'Classmates you starred. They leave the list once you move them up a level.'
-              : `${filtered.length} of ${classmates.length} classmates`}
+              ? 'Students and faculty you starred. They leave the list once you move them up a level.'
+              : `${filtered.length} of ${pool.length} ${who === 'faculty' ? 'faculty & staff' : who === 'all' ? 'people' : 'classmates'}`}
           </p>
         </div>
         <select
@@ -209,13 +225,6 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
               options={GENDER_OPTIONS.map((g) => g.value)}
               labels={Object.fromEntries(GENDER_OPTIONS.map((g) => [g.value, g.label]))}
               onChange={(v) => setSingle('gender', v)}
-            />
-            <Select
-              label="Role"
-              value={single('role')}
-              options={ROLE_OPTIONS.map((r) => r.value)}
-              labels={Object.fromEntries(ROLE_OPTIONS.map((r) => [r.value, r.label]))}
-              onChange={(v) => setSingle('role', v)}
             />
           </div>
           <ChipFilter
@@ -308,7 +317,7 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
       </ul>
       {!filtered.length && (
         <p className="mt-10 text-center text-gray-500">
-          {wishlist ? 'No one starred yet. Go to People and tap ☆ on classmates you want to meet.' : 'No classmates match these filters.'}
+          {wishlist ? 'No one starred yet. Go to People and tap ☆ on classmates you want to meet.' : 'No one matches these filters.'}
         </p>
       )}
     </div>

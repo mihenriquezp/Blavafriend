@@ -1023,3 +1023,6 @@ begin
   return public.coffee_state();
 end;
 $$;
+
+-- Make the API see new or changed functions right away.
+notify pgrst, 'reload schema';

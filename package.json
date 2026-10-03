@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "import": "tsx scripts/import-register.ts",
     "scrape": "tsx scripts/scrape-bsg.ts",
+    "scrape:faculty": "tsx scripts/scrape-faculty.ts",
     "flags": "tsx scripts/copy-flags.ts",
     "world": "tsx scripts/build-world.ts"
   },
