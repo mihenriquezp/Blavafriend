@@ -355,7 +355,17 @@ export function createDemoApi(): Api {
           signups: i < 14 ? Math.round(r() * 5) : Math.round(r() * 2),
         }
       })
+      // Fictional daily rhythm: lunchtime bump, evening peak, quieter weekend mornings.
+      const shape = [1, 0, 0, 0, 0, 0, 1, 3, 6, 7, 5, 5, 9, 8, 5, 4, 5, 7, 9, 12, 15, 16, 11, 5]
+      const hourly = Array.from({ length: 7 }, (_, d) =>
+        shape.map((v, hour) => ({
+          dow: d + 1,
+          hour,
+          n: Math.round(v * (d >= 5 ? (hour < 11 ? 0.4 : 1.2) : 1) * (0.7 + r() * 0.6) * 1.5),
+        })),
+      ).flat()
       return {
+        hourly,
         cohort: state.students.filter((s) => s.role !== 'faculty').length,
         accounts: claimed + 3,
         claimed,

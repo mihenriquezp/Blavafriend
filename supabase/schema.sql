@@ -561,12 +561,27 @@ returns date
 language sql stable
 as $$ select (now() at time zone 'Europe/London')::date $$;
 
+-- Same idea per hour (Oxford time), to see when during the day the app is used.
+create table if not exists public.app_visit_hours (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  day date not null,
+  hour smallint not null check (hour between 0 and 23),
+  primary key (user_id, day, hour)
+);
+
+alter table public.app_visit_hours enable row level security;
+-- No policies: written only through record_visit(), read only through admin_usage().
+
 create or replace function public.record_visit()
 returns void
 language sql volatile security definer set search_path = public
 as $$
   insert into public.app_visits (user_id, day)
   select auth.uid(), public.london_today()
+  where public.is_member()
+  on conflict do nothing;
+  insert into public.app_visit_hours (user_id, day, hour)
+  select auth.uid(), public.london_today(), extract(hour from now() at time zone 'Europe/London')::smallint
   where public.is_member()
   on conflict do nothing;
 $$;
@@ -598,6 +613,21 @@ begin
     union select created_by, (created_at at time zone 'Europe/London')::date from public.notices
     union select user_id, (created_at at time zone 'Europe/London')::date from public.cal_rsvps
   ),
+  -- Activity with a time of day (Oxford time), last 30 days: app opens per hour
+  -- plus actions. Counted once per person per hour.
+  hourly_activity as (
+    select user_id, day, hour from public.app_visit_hours where day > london_today() - 30
+    union
+    select who, (at at time zone 'Europe/London')::date, extract(hour from at at time zone 'Europe/London')::smallint
+    from (
+      select owner_id as who, created_at as at from public.relationship_events
+      union all select created_by, created_at from public.cal_events
+      union all select created_by, created_at from public.songs
+      union all select created_by, created_at from public.notices
+      union all select user_id, created_at from public.cal_rsvps
+    ) a
+    where (at at time zone 'Europe/London')::date > london_today() - 30
+  ),
   days as (
     select d::date as day from generate_series(london_today() - 29, london_today(), interval '1 day') d
   )
@@ -623,6 +653,14 @@ begin
       ) order by d.day)
       from days d
     ),
+    'hourly', coalesce((
+      select jsonb_agg(jsonb_build_object('dow', dow, 'hour', hour, 'n', n) order by dow, hour)
+      from (
+        select extract(isodow from day)::int as dow, hour, count(*)::int as n
+        from hourly_activity
+        group by 1, 2
+      ) h
+    ), '[]'::jsonb),
     'profiles', jsonb_build_object(
       'photo', (select count(*) from claimed where photo_url is not null),
       'birthday', (select count(*) from claimed where birth_day is not null and birth_month is not null),
