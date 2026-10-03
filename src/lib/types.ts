@@ -127,6 +127,24 @@ export interface UsageData {
   hourly: { dow: number; hour: number; n: number }[]
   profiles: { photo: number; birthday: number; country: number; hobbies: number; bio: number; languages: number }
   resources: { events: number; upcoming_events: number; rsvps: number; songs: number; notices: number }
+  coffee?: { auto: number; next: number; last: { round: string; people: number; groups: number } | null }
+}
+
+/** The signed-in person's view of the weekly coffee roulette (see public.coffee_state). */
+export interface CoffeeState {
+  /** Sunday (YYYY-MM-DD) of the draw currently open for sign-ups. */
+  open_round: string
+  draw_at: string
+  /** False between the Sunday 20:00 draw and Monday, when the next round opens. */
+  open: boolean
+  joined: boolean
+  auto: boolean
+  /** How many people are in the open round so far. */
+  entrants: number
+  /** The most recent draw that has happened (its coffee week is the current one). */
+  latest_round: string
+  /** Your matches, newest first: the student ids of the people in your group. */
+  matches: { round: string; partners: string[] }[]
 }
 
 export interface SessionUser {
@@ -167,6 +185,10 @@ export interface Api {
   listNotices(): Promise<Notice[]>
   saveNotice(input: NoticeInput, id?: string): Promise<Notice>
   deleteNotice(id: string): Promise<void>
+
+  coffeeState(): Promise<CoffeeState>
+  coffeeJoin(join: boolean): Promise<CoffeeState>
+  coffeeSetAuto(on: boolean): Promise<CoffeeState>
 
   recordVisit(): Promise<void>
   adminUsage(): Promise<UsageData>

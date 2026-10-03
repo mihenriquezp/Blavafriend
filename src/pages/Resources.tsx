@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { Coffee } from '../components/Coffee'
 import { Avatar, Card, Field, Spinner, btnPrimary, btnSecondary, inputCls } from '../components/ui'
 import { api } from '../lib/api'
 import { callName } from '../lib/names'
 import { useStore } from '../lib/store'
 import type { CalEvent, CalEventInput, Notice, NoticeCategory, NoticeInput, Rsvp, Song, Student } from '../lib/types'
 
-type Tab = 'events' | 'music' | 'notices'
+type Tab = 'events' | 'coffee' | 'music' | 'notices'
 const TABS: { value: Tab; label: string; emoji: string }[] = [
   { value: 'events', label: 'Events', emoji: '📅' },
+  { value: 'coffee', label: 'Coffee', emoji: '☕' },
   { value: 'music', label: 'Music', emoji: '🎵' },
   { value: 'notices', label: 'Notice board', emoji: '📢' },
 ]
@@ -56,7 +58,10 @@ export default function Resources() {
     <div className="space-y-4">
       <div>
         <h1 className="font-display text-2xl font-bold text-oxford-900">Resources</h1>
-        <p className="text-sm text-gray-500">Plans, music and tips from the cohort. Everything here is visible to all classmates.</p>
+        <p className="text-sm text-gray-500">
+          Plans, coffees, music and tips from the cohort. Everything here is visible to all classmates, except your coffee
+          match.
+        </p>
       </div>
       <div className="flex gap-1 overflow-x-auto" role="tablist">
         {TABS.map((t) => (
@@ -74,6 +79,7 @@ export default function Resources() {
         ))}
       </div>
       {tab === 'events' && <Events />}
+      {tab === 'coffee' && <Coffee />}
       {tab === 'music' && <Music />}
       {tab === 'notices' && <Notices />}
     </div>

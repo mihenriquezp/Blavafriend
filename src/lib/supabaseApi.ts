@@ -3,6 +3,7 @@ import { COUNTRY_CONTINENT } from './options'
 import type {
   Api,
   CalEvent,
+  CoffeeState,
   CohortData,
   CustomTag,
   Notice,
@@ -152,6 +153,16 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     async deleteNotice(id) {
       check(await sb.from('notices').delete().eq('id', id))
+    },
+
+    async coffeeState() {
+      return check(await sb.rpc('coffee_state')) as CoffeeState
+    },
+    async coffeeJoin(join) {
+      return check(await sb.rpc('coffee_join', { p_join: join })) as CoffeeState
+    },
+    async coffeeSetAuto(on) {
+      return check(await sb.rpc('coffee_set_auto', { p_on: on })) as CoffeeState
     },
 
     async recordVisit() {
