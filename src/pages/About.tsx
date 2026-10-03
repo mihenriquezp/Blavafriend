@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { InstallGuide } from '../components/InstallGuide'
 import { HowItWorks } from '../components/Intro'
 import { Card, btnSecondary } from '../components/ui'
 import { LEVELS } from '../lib/options'
@@ -13,6 +14,10 @@ export default function About() {
         <Link to="/welcome" className={`${btnSecondary} mt-4 w-full`}>
           ▶ Replay the welcome tour
         </Link>
+      </Card>
+      <Card>
+        <h2 className="mb-3 font-semibold text-oxford-900">📲 Add it to your phone</h2>
+        <InstallGuide />
       </Card>
       <Card className="space-y-3 text-sm leading-relaxed text-gray-700">
         <p>

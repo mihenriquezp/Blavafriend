@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { isBirthday } from '../lib/birthdays'
-import { coffeeWeek, fmtDay } from '../lib/coffee'
+import { coffeeWeek, fmtDay, londonToday } from '../lib/coffee'
 import { callName } from '../lib/names'
 import { useStore } from '../lib/store'
+import { InstallGuide, isInstalled } from './InstallGuide'
 import { Avatar, CountryLabel, btnPrimary } from './ui'
 
 const todayKey = () => {
@@ -12,6 +13,10 @@ const todayKey = () => {
   return `blavafriend-birthdays-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
 }
 const coffeeKey = (round: string) => `blavafriend-coffee-${round}`
+// One-off announcement: how to add the app to your phone, for everyone who
+// opens it on this day (Oxford time) in the browser.
+const INSTALL_DAY = '2026-10-04'
+const installKey = `blavafriend-install-${INSTALL_DAY}`
 
 const seen = (key: string) => {
   try {
@@ -58,12 +63,17 @@ export function BirthdayPopup() {
   }, [match, students])
 
   const showBirthdays = people.length > 0 && !seen(todayKey())
-  const open = !dismissed && (showBirthdays || !!coffee)
+  const [showInstall] = useState(() => londonToday() === INSTALL_DAY && !isInstalled() && !seen(installKey))
+  const open = !dismissed && (showBirthdays || !!coffee || showInstall)
+  // Birthdays and coffee first; the install guide gets its own screen after them.
+  const [page, setPage] = useState<'news' | 'install'>('news')
+  const installPage = showInstall && (page === 'install' || !(showBirthdays || coffee))
 
   const close = () => {
     try {
       if (people.length) localStorage.setItem(todayKey(), '1')
       if (coffee) localStorage.setItem(coffeeKey(coffee.round), '1')
+      if (showInstall) localStorage.setItem(installKey, '1')
     } catch {
       /* ignore */
     }
@@ -82,7 +92,7 @@ export function BirthdayPopup() {
         className="max-h-[85dvh] w-full max-w-sm overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {showBirthdays && (
+        {!installPage && showBirthdays && (
           <>
             <div className="text-center">
               <div className="text-5xl" aria-hidden>
@@ -131,7 +141,7 @@ export function BirthdayPopup() {
           </>
         )}
 
-        {coffee && (
+        {!installPage && coffee && (
           <div className={showBirthdays ? 'mt-5 border-t border-gray-100 pt-5' : ''}>
             <div className="text-center">
               <div className="text-5xl" aria-hidden>
@@ -173,9 +183,32 @@ export function BirthdayPopup() {
           </div>
         )}
 
-        <button className={`${btnPrimary} mt-5 w-full`} onClick={close} autoFocus>
-          {showBirthdays ? '🎉 Got it' : '☕ Got it'}
-        </button>
+        {installPage && (
+          <div>
+            <div className="mb-4 text-center">
+              <div className="text-5xl" aria-hidden>
+                📲
+              </div>
+              <h2 id="bday-title" className="mt-2 font-display text-2xl font-bold text-oxford-900">
+                Add Blavafriend to your phone
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                It opens full screen like a normal app, one tap from your home screen. Takes 20 seconds.
+              </p>
+            </div>
+            <InstallGuide />
+          </div>
+        )}
+
+        {showInstall && !installPage ? (
+          <button className={`${btnPrimary} mt-5 w-full`} onClick={() => setPage('install')} autoFocus>
+            Next →
+          </button>
+        ) : (
+          <button className={`${btnPrimary} mt-5 w-full`} onClick={close} autoFocus>
+            {installPage ? '👍 Got it' : showBirthdays ? '🎉 Got it' : '☕ Got it'}
+          </button>
+        )}
       </div>
     </div>
   )
