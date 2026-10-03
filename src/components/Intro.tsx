@@ -80,7 +80,7 @@ export function Privacy() {
           <Item ok>Role, college, countries, age, birthday (day and month only), gender, whether you’re coming with family</Item>
           <Item ok>Undergraduate degree, policy interests, hobbies, languages and your intro</Item>
           <Item ok>Any social links you choose to add</Item>
-          <Item ok>Events, songs and notices you post in Resources, and events you’re going to</Item>
+          <Item ok>Events, songs and notices you post in Coffee +, and events you’re going to</Item>
         </ul>
         <p className="mt-1.5 text-xs text-gray-500">Everything except your name is optional. Edit or remove it any time.</p>
       </div>
