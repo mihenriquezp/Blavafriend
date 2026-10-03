@@ -40,6 +40,15 @@ export default function About() {
             own dot only shows the ties you marked, and groups smaller than 5 people are hidden.
           </li>
         </ul>
+        <h2 className="pt-2 font-semibold text-oxford-900">Coffee roulette</h2>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            If you sign up, the weekly draw uses your levels and your match’s levels for each other to put together people
+            who haven’t met yet. This happens inside the database: nobody, including the admin, sees why two people were
+            matched.
+          </li>
+          <li>Only you and your match see that you were matched. The admin only sees totals (e.g. “40 people, 20 groups”).</li>
+        </ul>
         <h2 className="pt-2 font-semibold text-oxford-900">What's shared with the cohort</h2>
         <ul className="list-disc space-y-1 pl-5">
           <li>

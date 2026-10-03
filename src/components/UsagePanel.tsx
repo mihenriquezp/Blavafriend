@@ -88,6 +88,15 @@ export function UsagePanel() {
             <Row label="RSVPs" value={data.resources.rsvps} />
             <Row label="🎵 Songs" value={data.resources.songs} />
             <Row label="📢 Active notices" value={data.resources.notices} />
+            {data.coffee && (
+              <>
+                <Row label="☕ Coffee: signed up for next draw" value={data.coffee.next} />
+                <Row label="☕ Coffee: “every week” on" value={data.coffee.auto} />
+                {data.coffee.last && (
+                  <Row label="☕ Coffee: last draw" value={`${data.coffee.last.people} people · ${data.coffee.last.groups} groups`} />
+                )}
+              </>
+            )}
             <Row label="Accounts created" value={data.accounts} />
           </ul>
         </div>

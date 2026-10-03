@@ -612,6 +612,7 @@ begin
     union select created_by, (created_at at time zone 'Europe/London')::date from public.songs
     union select created_by, (created_at at time zone 'Europe/London')::date from public.notices
     union select user_id, (created_at at time zone 'Europe/London')::date from public.cal_rsvps
+    union select user_id, (created_at at time zone 'Europe/London')::date from public.coffee_entries
   ),
   -- Activity with a time of day (Oxford time), last 30 days: app opens per hour
   -- plus actions. Counted once per person per hour.
@@ -625,6 +626,7 @@ begin
       union all select created_by, created_at from public.songs
       union all select created_by, created_at from public.notices
       union all select user_id, created_at from public.cal_rsvps
+      union all select user_id, created_at from public.coffee_entries
     ) a
     where (at at time zone 'Europe/London')::date > london_today() - 30
   ),
@@ -675,8 +677,349 @@ begin
       'rsvps', (select count(*) from public.cal_rsvps),
       'songs', (select count(*) from public.songs),
       'notices', (select count(*) from public.notices where expires_on is null or expires_on >= london_today())
+    ),
+    'coffee', jsonb_build_object(
+      'auto', (select count(*) from public.coffee_auto),
+      'next', (select count(*) from public.coffee_participants(public.coffee_open_round())),
+      'last', (
+        select jsonb_build_object('round', round, 'people', people, 'groups', groups)
+        from public.coffee_rounds where people > 0 order by round desc limit 1
+      )
     )
   ) into result;
   return result;
+end;
+$$;
+
+-------------------------------------------------------------------------------
+-- Coffee roulette (weekly random coffee matches)
+-------------------------------------------------------------------------------
+-- Each week runs Monday → Sunday. Sign-ups for a round open on Monday and close
+-- with the draw on Sunday at 20:00 Oxford time; the coffee happens the week
+-- after. A round is identified by the date of its draw (a Sunday).
+--
+-- Who gets matched with whom: every possible pair gets a cost from BOTH
+-- people's private levels, level(A→B)² + level(B→A)², plus 100 if they were
+-- already matched in an earlier round. The draw picks the pairs with the lowest
+-- total cost, so people who don't know each other go first and friends last.
+-- Everyone who signs up gets matched (with an odd number, one group of three).
+--
+-- Privacy: the levels are only read inside the draw. Nobody (admin included)
+-- sees costs or why two people were matched; each person only sees their own
+-- match, and the admin only sees totals.
+
+-- "Sign me up every week". Pauses on its own if the account hasn't opened the
+-- app in the 3 weeks before a draw, so nobody gets matched with a ghost.
+create table if not exists public.coffee_auto (
+  user_id uuid primary key default auth.uid() references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+-- Explicit choice for one round: in (true) or skipping it (false). Overrides
+-- coffee_auto for that round.
+create table if not exists public.coffee_entries (
+  round date not null check (extract(isodow from round) = 7),
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  joining boolean not null,
+  created_at timestamptz not null default now(),
+  primary key (round, user_id)
+);
+
+create table if not exists public.coffee_rounds (
+  round date primary key,
+  drawn_at timestamptz not null default now(),
+  people int not null,
+  groups int not null
+);
+
+create table if not exists public.coffee_matches (
+  round date not null references public.coffee_rounds (round) on delete cascade,
+  grp int not null,
+  student_id uuid not null references public.students (id) on delete cascade,
+  primary key (round, student_id)
+);
+
+alter table public.coffee_auto enable row level security;
+alter table public.coffee_entries enable row level security;
+alter table public.coffee_rounds enable row level security;
+alter table public.coffee_matches enable row level security;
+-- No policies: everything goes through the functions below.
+
+-- The round currently open for sign-ups: this week's Sunday (Oxford time).
+create or replace function public.coffee_open_round()
+returns date
+language sql stable
+as $$ select public.london_today() + (7 - extract(isodow from public.london_today()))::int $$;
+
+create or replace function public.coffee_draw_at(p_round date)
+returns timestamptz
+language sql stable
+as $$ select (p_round + time '20:00') at time zone 'Europe/London' $$;
+
+-- Accounts in a round: an explicit "in", or "every week" without a skip for
+-- that round and with the app opened in the 3 weeks before the draw.
+create or replace function public.coffee_participants(p_round date)
+returns table (user_id uuid, student_id uuid)
+language sql stable security definer set search_path = public
+as $$
+  select s.user_id, s.id
+  from public.students s
+  where s.user_id is not null
+    and (
+      exists (select 1 from public.coffee_entries e where e.round = p_round and e.user_id = s.user_id and e.joining)
+      or (
+        exists (select 1 from public.coffee_auto a where a.user_id = s.user_id)
+        and not exists (select 1 from public.coffee_entries e where e.round = p_round and e.user_id = s.user_id)
+        and exists (select 1 from public.app_visits v where v.user_id = s.user_id and v.day > p_round - 21)
+      )
+    );
+$$;
+
+-- The draw. Minimum-cost matching: a greedy start (cheapest pairs first, ties
+-- at random) improved by swapping partners between pairs until no swap lowers
+-- the total. With an odd number of people, a placeholder joins the matching;
+-- whoever lands with it joins the group where they know both people least
+-- (avoiding anyone who was in a group of three in the last 4 rounds).
+create or replace function public.coffee_draw(p_round date)
+returns void
+language plpgsql volatile security definer set search_path = public, pg_temp
+as $$
+declare
+  uids uuid[];
+  sids uuid[];
+  n int;
+  m int;
+  lv int[];
+  c int[];
+  mate int[];
+  rec record;
+  i int; j int; a int; b int; x int; y int;
+  cur int;
+  improved boolean;
+  sweeps int := 0;
+  g int := 0;
+  extra int;
+  best_g int;
+  best_cost int;
+  recent_trio boolean[];
+begin
+  if exists (select 1 from public.coffee_rounds where round = p_round) then
+    return;
+  end if;
+
+  select array_agg(p.user_id order by r), array_agg(p.student_id order by r)
+  into uids, sids
+  from (select *, random() as r from public.coffee_participants(p_round)) p;
+  n := coalesce(cardinality(sids), 0);
+
+  if n < 2 then
+    insert into public.coffee_rounds (round, people, groups) values (p_round, n, 0);
+    return;
+  end if;
+
+  m := n + (n % 2);  -- index m is the placeholder when n is odd
+  lv := array_fill(0, array[n * n]);
+  c := array_fill(0, array[m * m]);
+  mate := array_fill(0, array[m]);
+
+  -- Each person's private level for each other participant.
+  for rec in
+    select array_position(uids, r.owner_id) as i, array_position(sids, r.student_id) as j, r.level
+    from public.relationships r
+    where r.owner_id = any (uids) and r.student_id = any (sids) and r.level > 0
+  loop
+    if rec.i <> rec.j then
+      lv[(rec.i - 1) * n + rec.j] := rec.level;
+    end if;
+  end loop;
+
+  for i in 1 .. n loop
+    for j in 1 .. n loop
+      if i <> j then
+        c[(i - 1) * m + j] := lv[(i - 1) * n + j] ^ 2 + lv[(j - 1) * n + i] ^ 2;
+      end if;
+    end loop;
+  end loop;
+
+  -- Already had coffee together in an earlier round.
+  for rec in
+    select distinct array_position(sids, x1.student_id) as i, array_position(sids, x2.student_id) as j
+    from public.coffee_matches x1
+    join public.coffee_matches x2 on x2.round = x1.round and x2.grp = x1.grp and x2.student_id <> x1.student_id
+    where x1.round < p_round and x1.student_id = any (sids) and x2.student_id = any (sids)
+  loop
+    c[(rec.i - 1) * m + rec.j] := c[(rec.i - 1) * m + rec.j] + 100;
+  end loop;
+
+  if m > n then
+    -- Pairing with the placeholder = being the extra person in a group of three.
+    recent_trio := array_fill(false, array[n]);
+    for i in 1 .. n loop
+      if exists (
+        select 1 from public.coffee_matches x
+        where x.student_id = sids[i] and x.round >= p_round - 28 and x.round < p_round
+          and (select count(*) from public.coffee_matches y where y.round = x.round and y.grp = x.grp) > 2
+      ) then
+        recent_trio[i] := true;
+        c[(i - 1) * m + m] := 50;
+        c[(m - 1) * m + i] := 50;
+      end if;
+    end loop;
+  end if;
+
+  -- Greedy start: cheapest pairs first, ties broken at random.
+  for rec in
+    select gi as i, gj as j
+    from generate_series(1, m) gi, generate_series(1, m) gj
+    where gi < gj
+    order by c[(gi - 1) * m + gj], random()
+  loop
+    if mate[rec.i] = 0 and mate[rec.j] = 0 then
+      mate[rec.i] := rec.j;
+      mate[rec.j] := rec.i;
+    end if;
+  end loop;
+
+  -- Improve: swap partners between two pairs while it lowers the total.
+  loop
+    improved := false;
+    sweeps := sweeps + 1;
+    for a in 1 .. m loop
+      for x in a + 1 .. m loop
+        b := mate[a];
+        y := mate[x];
+        continue when x = b or b < a or y < x;
+        cur := c[(a - 1) * m + b] + c[(x - 1) * m + y];
+        if c[(a - 1) * m + x] + c[(b - 1) * m + y] < cur then
+          mate[a] := x; mate[x] := a; mate[b] := y; mate[y] := b;
+          improved := true;
+        elsif c[(a - 1) * m + y] + c[(b - 1) * m + x] < cur then
+          mate[a] := y; mate[y] := a; mate[b] := x; mate[x] := b;
+          improved := true;
+        end if;
+      end loop;
+    end loop;
+    exit when not improved or sweeps >= 100;
+  end loop;
+
+  insert into public.coffee_rounds (round, people, groups) values (p_round, n, n / 2);
+
+  extra := case when m > n then mate[m] else 0 end;
+  best_cost := null;
+  for i in 1 .. n loop
+    j := mate[i];
+    continue when j < i or j > n or i = extra or j = extra;
+    g := g + 1;
+    insert into public.coffee_matches (round, grp, student_id) values (p_round, g, sids[i]), (p_round, g, sids[j]);
+    if extra > 0 then
+      cur := c[(extra - 1) * m + i] + c[(extra - 1) * m + j]
+        + case when recent_trio[i] then 50 else 0 end + case when recent_trio[j] then 50 else 0 end;
+      if best_cost is null or cur < best_cost or (cur = best_cost and random() < 0.5) then
+        best_cost := cur;
+        best_g := g;
+      end if;
+    end if;
+  end loop;
+
+  if extra > 0 then
+    insert into public.coffee_matches (round, grp, student_id) values (p_round, best_g, sids[extra]);
+  end if;
+end;
+$$;
+
+revoke execute on function public.coffee_draw(date) from public, anon, authenticated;
+revoke execute on function public.coffee_participants(date) from public, anon, authenticated;
+
+-- Everything the Coffee tab needs, for the signed-in person only. Also runs the
+-- latest draw if it is due and hasn't run yet (the first visit after Sunday
+-- 20:00 triggers it, so no scheduler is needed).
+create or replace function public.coffee_state()
+returns jsonb
+language plpgsql volatile security definer set search_path = public, pg_temp
+as $$
+declare
+  open_round date := public.coffee_open_round();
+  due date;
+  my_student uuid;
+begin
+  if not public.is_member() then
+    raise exception 'Not allowed';
+  end if;
+
+  due := case when now() >= public.coffee_draw_at(open_round) then open_round else open_round - 7 end;
+  if not exists (select 1 from public.coffee_rounds where round = due) then
+    perform pg_advisory_xact_lock(hashtext('coffee_draw'));
+    perform public.coffee_draw(due);
+  end if;
+
+  select id into my_student from public.students where user_id = auth.uid();
+
+  return jsonb_build_object(
+    'open_round', open_round,
+    'draw_at', public.coffee_draw_at(open_round),
+    'open', now() < public.coffee_draw_at(open_round),
+    'joined', exists (select 1 from public.coffee_participants(open_round) p where p.user_id = auth.uid()),
+    'auto', exists (select 1 from public.coffee_auto where user_id = auth.uid()),
+    'entrants', (select count(*) from public.coffee_participants(open_round)),
+    'latest_round', due,
+    'matches', coalesce((
+      select jsonb_agg(jsonb_build_object('round', mine.round, 'partners', (
+        select coalesce(jsonb_agg(o.student_id), '[]'::jsonb)
+        from public.coffee_matches o
+        where o.round = mine.round and o.grp = mine.grp and o.student_id <> my_student
+      )) order by mine.round desc)
+      from public.coffee_matches mine
+      where mine.student_id = my_student
+    ), '[]'::jsonb)
+  );
+end;
+$$;
+
+create or replace function public.coffee_join(p_join boolean)
+returns jsonb
+language plpgsql volatile security definer set search_path = public, pg_temp
+as $$
+begin
+  if not public.is_member() or not exists (select 1 from public.students where user_id = auth.uid()) then
+    raise exception 'Claim your profile first';
+  end if;
+  if now() >= public.coffee_draw_at(public.coffee_open_round()) then
+    raise exception 'This week''s draw has closed. Sign-ups for next week open on Monday.';
+  end if;
+  insert into public.coffee_entries (round, user_id, joining)
+  values (public.coffee_open_round(), auth.uid(), p_join)
+  on conflict (round, user_id) do update set joining = excluded.joining, created_at = now();
+  return public.coffee_state();
+end;
+$$;
+
+create or replace function public.coffee_set_auto(p_on boolean)
+returns jsonb
+language plpgsql volatile security definer set search_path = public, pg_temp
+as $$
+declare
+  open_now boolean := now() < public.coffee_draw_at(public.coffee_open_round());
+begin
+  if not public.is_member() or not exists (select 1 from public.students where user_id = auth.uid()) then
+    raise exception 'Claim your profile first';
+  end if;
+  if p_on then
+    insert into public.coffee_auto (user_id) values (auth.uid()) on conflict do nothing;
+    -- Turning it on also signs you up for this week.
+    if open_now then
+      insert into public.coffee_entries (round, user_id, joining)
+      values (public.coffee_open_round(), auth.uid(), true)
+      on conflict (round, user_id) do update set joining = true, created_at = now();
+    end if;
+  else
+    -- Turning it off keeps this week as it was (leave with the other button).
+    if open_now and exists (select 1 from public.coffee_participants(public.coffee_open_round()) p where p.user_id = auth.uid()) then
+      insert into public.coffee_entries (round, user_id, joining)
+      values (public.coffee_open_round(), auth.uid(), true)
+      on conflict (round, user_id) do nothing;
+    end if;
+    delete from public.coffee_auto where user_id = auth.uid();
+  end if;
+  return public.coffee_state();
 end;
 $$;

@@ -2,9 +2,11 @@
 // and lives in this browser's localStorage, so anyone can try the app safely.
 import { COLLEGES, COUNTRIES, GENDER_OPTIONS, HOBBIES, LANGUAGES, POLICY_INTERESTS, UNDERGRAD_FIELDS, type Level } from './options'
 import { computeCohort, type Rating } from './cohort'
+import { addDays, drawAt, matchGroups, openRound } from './coffee'
 import type {
   Api,
   CalEvent,
+  CoffeeState,
   CustomTag,
   Notice,
   Relationship,
@@ -28,7 +30,12 @@ interface DemoState {
   rsvps: Rsvp[]
   songs: Song[]
   notices: Notice[]
+  /** Added later, so older saved demos may not have it. Rounds hold groups of student ids. */
+  coffee?: { auto: boolean; entries: Record<string, boolean>; rounds: Record<string, string[][]> }
 }
+
+/** Stable pseudo-random number for a string (demo only). */
+const hash = (s: string) => [...s].reduce((x, ch) => (Math.imul(x, 31) + ch.charCodeAt(0)) >>> 0, 7)
 
 const FIRST = [
   'Ana', 'Kofi', 'Mei', 'Lucas', 'Priya', 'Tomás', 'Aiko', 'Omar', 'Sofia', 'Daniel', 'Amara',
@@ -183,6 +190,58 @@ export function createDemoApi(): Api {
     const s = state.students.find((x) => x.id === id)
     if (!s) throw new Error('Student not found')
     return s
+  }
+
+  const coffee = () => (state.coffee ??= { auto: false, entries: {}, rounds: {} })
+  const myId = () => state.students.find((s) => s.user_id === DEMO_USER.id)?.id
+  const inRound = (round: string) => coffee().entries[round] ?? coffee().auto
+  // Fictional classmates in a round: a stable ~45% of everyone else.
+  const participants = (round: string) => {
+    const me = myId()
+    const others = state.students.filter((s) => s.id !== me && hash(round + s.id) % 100 < 45).map((s) => s.id)
+    return me && inRound(round) ? [me, ...others] : others
+  }
+  const levelOf = (a: string, b: string) => {
+    if (a === myId()) return state.relationships.find((r) => r.student_id === b)?.level ?? 0
+    const h = hash(a + b)
+    return h % 10 < 7 ? 0 : 1 + (h % 4)
+  }
+  const draw = (round: string) => {
+    const c = coffee()
+    if (c.rounds[round]) return
+    const ids = participants(round)
+    const before = Object.entries(c.rounds).filter(([r]) => r < round).flatMap(([, gs]) => gs)
+    const metBefore = (a: string, b: string) => before.some((g) => g.includes(a) && g.includes(b))
+    const cost = (i: number, j: number) =>
+      levelOf(ids[i], ids[j]) ** 2 + levelOf(ids[j], ids[i]) ** 2 + (metBefore(ids[i], ids[j]) ? 100 : 0)
+    c.rounds[round] = matchGroups(ids.length, cost).map((g) => g.map((i) => ids[i]))
+  }
+  const coffeeState = (): CoffeeState => {
+    const c = coffee()
+    const open = openRound()
+    const isOpen = Date.now() < drawAt(open).getTime()
+    const latest = isOpen ? addDays(open, -7) : open
+    // First visit: pretend you joined last week, so the demo has a match to show.
+    if (!Object.keys(c.rounds).length && myId()) c.entries[latest] = true
+    draw(latest)
+    save()
+    const me = myId()
+    const matches = Object.entries(c.rounds)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .flatMap(([round, groups]) => {
+        const g = groups.find((x) => me && x.includes(me))
+        return g ? [{ round, partners: g.filter((id) => id !== me) }] : []
+      })
+    return {
+      open_round: open,
+      draw_at: drawAt(open).toISOString(),
+      open: isOpen,
+      joined: inRound(open),
+      auto: c.auto,
+      entrants: participants(open).length,
+      latest_round: latest,
+      matches,
+    }
   }
 
   return {
@@ -340,6 +399,26 @@ export function createDemoApi(): Api {
       save()
     },
 
+    async coffeeState() {
+      return coffeeState()
+    },
+    async coffeeJoin(join) {
+      const round = openRound()
+      if (Date.now() >= drawAt(round).getTime()) throw new Error('This week’s draw has closed. Sign-ups for next week open on Monday.')
+      coffee().entries[round] = join
+      save()
+      return coffeeState()
+    },
+    async coffeeSetAuto(on) {
+      const c = coffee()
+      const round = openRound()
+      const open = Date.now() < drawAt(round).getTime()
+      if (open && (on || inRound(round))) c.entries[round] = true
+      c.auto = on
+      save()
+      return coffeeState()
+    },
+
     async recordVisit() {},
     async adminUsage() {
       // Fictional usage numbers for the demo.
@@ -383,6 +462,7 @@ export function createDemoApi(): Api {
           songs: state.songs.length,
           notices: state.notices.length,
         },
+        coffee: { auto: 9, next: participants(openRound()).length, last: { round: addDays(openRound(), -7), people: 19, groups: 9 } },
       }
     },
 
