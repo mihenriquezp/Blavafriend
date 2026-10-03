@@ -9,8 +9,8 @@ import type { CalEvent, CalEventInput, Notice, NoticeCategory, NoticeInput, Rsvp
 
 type Tab = 'events' | 'coffee' | 'music' | 'notices'
 const TABS: { value: Tab; label: string; emoji: string }[] = [
+  { value: 'coffee', label: 'Caffe +', emoji: '☕' },
   { value: 'events', label: 'Events', emoji: '📅' },
-  { value: 'coffee', label: 'Coffee', emoji: '☕' },
   { value: 'music', label: 'Music', emoji: '🎵' },
   { value: 'notices', label: 'Notice board', emoji: '📢' },
 ]
@@ -53,7 +53,7 @@ function useAuthors() {
 
 export default function Resources() {
   const [params, setParams] = useSearchParams()
-  const tab = (params.get('tab') as Tab) || 'events'
+  const tab = (params.get('tab') as Tab) || 'coffee'
   return (
     <div className="space-y-4">
       <div>
