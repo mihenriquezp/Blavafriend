@@ -47,6 +47,12 @@ export function UsagePanel() {
       </p>
       <DailyBars days={data.daily} pick={(d) => d.active} unit="active" />
 
+      <h3 className="mt-5 mb-0.5 text-sm font-semibold text-oxford-900">Time of day</h3>
+      <p className="mb-2 text-[11px] text-gray-500">
+        Average people active per day in each hour, last 30 days (Oxford time). Counts app opens and actions.
+      </p>
+      <HourlyChart hourly={data.hourly} />
+
       <h3 className="mt-5 mb-2 text-sm font-semibold text-oxford-900">Level changes per day</h3>
       <DailyBars days={data.daily} pick={(d) => d.changes} unit="changes" />
 
@@ -86,6 +92,90 @@ export function UsagePanel() {
         </div>
       </div>
     </Card>
+  )
+}
+
+type DayFilter = 'all' | 'weekdays' | 'weekend'
+const FILTERS: [DayFilter, string][] = [
+  ['all', 'Every day'],
+  ['weekdays', 'Mon–Fri'],
+  ['weekend', 'Sat–Sun'],
+]
+
+function HourlyChart({ hourly }: { hourly: UsageData['hourly'] }) {
+  const [filter, setFilter] = useState<DayFilter>('all')
+  const [hover, setHover] = useState<number | null>(null)
+  const keep = (dow: number) => filter === 'all' || (filter === 'weekend' ? dow >= 6 : dow <= 5)
+
+  // How many of the last 30 days fall in the filter, to turn totals into a per-day average.
+  let days = 0
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(Date.now() - i * 86_400_000).getDay() // 0 = Sun
+    if (keep(d === 0 ? 7 : d)) days++
+  }
+  const perHour = Array.from({ length: 24 }, (_, h) =>
+    hourly.filter((x) => x.hour === h && keep(x.dow)).reduce((n, x) => n + x.n, 0) / Math.max(1, days),
+  )
+  const max = Math.max(0.0001, ...perHour)
+  const peak = perHour.indexOf(Math.max(...perHour))
+  const shown = hover ?? peak
+  const hh = (h: number) => `${String(h).padStart(2, '0')}:00`
+  const total = perHour.reduce((a, b) => a + b, 0)
+
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-1" role="radiogroup" aria-label="Which days">
+          {FILTERS.map(([v, label]) => (
+            <button
+              key={v}
+              role="radio"
+              aria-checked={filter === v}
+              onClick={() => setFilter(v)}
+              className={`rounded-full px-3 py-1 text-xs font-medium ${
+                filter === v ? 'bg-oxford-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="text-xs text-gray-600" aria-live="polite">
+          {total ? (
+            <>
+              {hover === null ? 'Busiest: ' : ''}
+              <b className="text-oxford-900">
+                {hh(shown)}–{hh((shown + 1) % 24)}
+              </b>{' '}
+              · {perHour[shown].toFixed(1)} people/day
+            </>
+          ) : (
+            'No activity yet'
+          )}
+        </span>
+      </div>
+      <div className="flex h-28 items-end gap-[2px]" role="img" aria-label={`Average people active per hour; busiest ${hh(peak)}`}>
+        {perHour.map((v, h) => (
+          <div
+            key={h}
+            className="flex h-full flex-1 items-end"
+            onMouseEnter={() => setHover(h)}
+            onMouseLeave={() => setHover(null)}
+            onClick={() => setHover(hover === h ? null : h)}
+          >
+            <div
+              className={`w-full rounded-t ${hover === h ? 'bg-oxford-900' : h === peak && hover === null ? 'bg-gold' : 'bg-oxford-500'}`}
+              style={{ height: `${Math.max(v ? 4 : 1, (v / max) * 100)}%`, opacity: v ? 1 : 0.25 }}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="mt-1 grid grid-cols-4 text-[10px] text-gray-400">
+        {[0, 6, 12, 18].map((h) => (
+          <span key={h}>{hh(h)}</span>
+        ))}
+      </div>
+    </div>
   )
 }
 

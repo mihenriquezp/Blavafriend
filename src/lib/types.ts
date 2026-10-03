@@ -123,6 +123,8 @@ export interface UsageData {
   notes: number
   active: { d1: number; d7: number; d30: number }
   daily: { day: string; active: number; changes: number; signups: number }[]
+  /** Last 30 days, Oxford time: people active per weekday (1 = Mon … 7 = Sun) and hour. */
+  hourly: { dow: number; hour: number; n: number }[]
   profiles: { photo: number; birthday: number; country: number; hobbies: number; bio: number; languages: number }
   resources: { events: number; upcoming_events: number; rsvps: number; songs: number; notices: number }
 }

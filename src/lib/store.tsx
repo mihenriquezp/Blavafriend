@@ -93,9 +93,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Count this account as active today (one row per day; nothing else is recorded).
+  // Count this account as active today and this hour (nothing else is recorded).
+  // Also when the app comes back to the foreground (the DB keeps one row per hour).
   useEffect(() => {
-    if (user) api.recordVisit().catch(() => {})
+    if (!user) return
+    api.recordVisit().catch(() => {})
+    const onVisible = () => document.visibilityState === 'visible' && api.recordVisit().catch(() => {})
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
   }, [user])
 
   useEffect(() => {
