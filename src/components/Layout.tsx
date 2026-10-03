@@ -8,7 +8,7 @@ const NAV = [
   { to: '/', label: 'Stats', short: 'Stats', icon: '📊', end: true },
   { to: '/people', label: 'People', short: 'People', icon: '👥' },
   { to: '/cohort', label: 'Cohort', short: 'Cohort', icon: '🌐' },
-  { to: '/resources', label: 'Resources', short: 'Resources', icon: '📌' },
+  { to: '/resources', label: 'Coffee +', short: 'Coffee +', icon: '☕' },
   { to: '/me', label: 'Profile', short: 'Profile', icon: '🙂' },
 ]
 

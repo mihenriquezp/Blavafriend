@@ -9,7 +9,7 @@ import type { CalEvent, CalEventInput, Notice, NoticeCategory, NoticeInput, Rsvp
 
 type Tab = 'events' | 'coffee' | 'music' | 'notices'
 const TABS: { value: Tab; label: string; emoji: string }[] = [
-  { value: 'coffee', label: 'Caffe +', emoji: '☕' },
+  { value: 'coffee', label: 'Coffee roulette', emoji: '☕' },
   { value: 'events', label: 'Events', emoji: '📅' },
   { value: 'music', label: 'Music', emoji: '🎵' },
   { value: 'notices', label: 'Notice board', emoji: '📢' },
@@ -57,7 +57,7 @@ export default function Resources() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="font-display text-2xl font-bold text-oxford-900">Resources</h1>
+        <h1 className="font-display text-2xl font-bold text-oxford-900">Coffee +</h1>
         <p className="text-sm text-gray-500">
           Plans, coffees, music and tips from the cohort. Everything here is visible to all classmates, except your coffee
           match.

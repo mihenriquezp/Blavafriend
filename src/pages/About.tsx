@@ -57,7 +57,7 @@ export default function About() {
           </li>
           <li>Everything except your name is optional, and you can edit or remove it at any time from your profile.</li>
           <li>
-            In Resources, the events, songs and notices you post, and the events you say you’re going to, are visible to
+            In Coffee +, the events, songs and notices you post, and the events you say you’re going to, are visible to
             classmates with your name. You can delete your posts at any time.
           </li>
           <li>Profile photos are stored at an unguessable link that isn't listed anywhere public.</li>
