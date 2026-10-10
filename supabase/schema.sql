@@ -1123,5 +1123,116 @@ as $$
   delete from public.tools where remove_on <= public.london_today();
 $$;
 
+-- How tools are used: one row per visit (opened, seconds on screen, and how many
+-- times the tool saved something, a sign the person actually used it).
+-- Kept after a tool is removed (tool_id becomes null, the title stays).
+-- No policies: written through tool_open / tool_heartbeat, read only as totals
+-- through admin_tool_stats().
+create table if not exists public.tool_sessions (
+  id uuid primary key default gen_random_uuid(),
+  tool_id uuid references public.tools (id) on delete set null,
+  tool_title text not null,
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  started_at timestamptz not null default now(),
+  seconds int not null default 0 check (seconds between 0 and 14400),
+  actions int not null default 0 check (actions between 0 and 100000)
+);
+
+alter table public.tool_sessions enable row level security;
+
+create or replace function public.tool_open(p_tool uuid)
+returns uuid
+language plpgsql volatile security definer set search_path = public, pg_temp
+as $$
+declare
+  sid uuid;
+begin
+  if not public.is_member() then
+    raise exception 'Not allowed';
+  end if;
+  insert into public.tool_sessions (tool_id, tool_title, user_id)
+  select t.id, t.title, auth.uid() from public.tools t
+  where t.id = p_tool and (t.remove_on is null or t.remove_on > public.london_today())
+  returning id into sid;
+  return sid;
+end;
+$$;
+
+-- Only the visit's own account can update it, and values only go up.
+create or replace function public.tool_heartbeat(p_session uuid, p_seconds int, p_actions int)
+returns void
+language sql volatile security definer set search_path = public
+as $$
+  update public.tool_sessions
+  set seconds = greatest(seconds, least(greatest(p_seconds, 0), 14400)),
+      actions = greatest(actions, least(greatest(p_actions, 0), 100000))
+  where id = p_session and user_id = auth.uid();
+$$;
+
+-- Totals per tool for admins. Admins' own visits are left out (testing).
+create or replace function public.admin_tool_stats()
+returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp
+as $$
+declare
+  result jsonb;
+begin
+  if not public.is_admin() then
+    raise exception 'Only admins can see usage stats';
+  end if;
+
+  with s as (
+    select ts.*
+    from public.tool_sessions ts
+    join auth.users u on u.id = ts.user_id
+    where lower(u.email) not in (select email from public.app_admins)
+  ),
+  per_person as (
+    select coalesce(tool_id::text, tool_title) as k, user_id, count(*) as visits
+    from s group by 1, 2
+  ),
+  tools as (
+    select coalesce(s.tool_id::text, s.tool_title) as k,
+           max(s.tool_title) as title,
+           bool_or(t.id is not null) as live,
+           max(t.icon) as icon,
+           count(*) as opens,
+           count(distinct s.user_id) as people,
+           count(*) filter (where s.actions > 0) as engaged,
+           sum(s.seconds) as total_seconds,
+           coalesce(percentile_cont(0.5) within group (order by s.seconds) filter (where s.seconds > 0), 0) as median_seconds,
+           max(s.started_at) as last_open
+    from s left join public.tools t on t.id = s.tool_id
+    group by 1
+  )
+  select jsonb_build_object(
+    'students', (select count(*) from public.students where role = 'student' and user_id is not null),
+    'tools', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'title', t.title,
+        'icon', coalesce(t.icon, '🧰'),
+        'live', t.live,
+        'opens', t.opens,
+        'people', t.people,
+        'returning', (select count(*) from per_person p where p.k = t.k and p.visits > 1),
+        'engaged', t.engaged,
+        'total_seconds', t.total_seconds,
+        'median_seconds', round(t.median_seconds),
+        'last_open', t.last_open,
+        'daily', (
+          select jsonb_agg(jsonb_build_object('day', d::date, 'opens', (
+            select count(*) from s where coalesce(s.tool_id::text, s.tool_title) = t.k
+              and (s.started_at at time zone 'Europe/London')::date = d::date
+          )) order by d)
+          from generate_series(public.london_today() - 13, public.london_today(), interval '1 day') d
+        )
+      ) order by t.last_open desc)
+      from tools t
+    ), '[]'::jsonb)
+  ) into result;
+  return result;
+end;
+$$;
+
 -- Make the API see new or changed functions right away.
 notify pgrst, 'reload schema';

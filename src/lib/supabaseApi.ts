@@ -15,6 +15,7 @@ import type {
   Song,
   Student,
   Tool,
+  ToolStats,
   UsageData,
 } from './types'
 
@@ -182,6 +183,16 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     async deleteTool(id) {
       check(await sb.from('tools').delete().eq('id', id))
+    },
+    async toolOpen(id) {
+      const { data, error } = await sb.rpc('tool_open', { p_tool: id })
+      return error ? null : ((data as string | null) ?? null)
+    },
+    async toolHeartbeat(sessionId, seconds, actions) {
+      await sb.rpc('tool_heartbeat', { p_session: sessionId, p_seconds: seconds, p_actions: actions })
+    },
+    async adminToolStats() {
+      return check(await sb.rpc('admin_tool_stats')) as ToolStats
     },
 
     async coffeeState() {
