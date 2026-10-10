@@ -1047,5 +1047,41 @@ begin
 end;
 $$;
 
+-------------------------------------------------------------------------------
+-- Useful tools (HTML pages uploaded by admins, shown until their removal date)
+-------------------------------------------------------------------------------
+-- The app shows each page inside a sandboxed iframe with no access to the
+-- app's origin, so a tool can't read anyone's session or data.
+
+create table if not exists public.tools (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (char_length(title) between 1 and 80),
+  description text check (char_length(description) <= 300),
+  icon text not null default '🧰' check (char_length(icon) between 1 and 8),
+  html text not null check (octet_length(html) <= 3000000),
+  -- First day it is no longer shown (and is deleted). Null = keep.
+  remove_on date,
+  created_by uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+alter table public.tools enable row level security;
+
+drop policy if exists "members read current tools" on public.tools;
+create policy "members read current tools" on public.tools
+  for select using (public.is_member() and (remove_on is null or remove_on > public.london_today()));
+
+drop policy if exists "admins manage tools" on public.tools;
+create policy "admins manage tools" on public.tools
+  for all using (public.is_admin()) with check (public.is_admin());
+
+-- Deletes tools whose removal date has come (called when the list loads).
+create or replace function public.purge_expired_tools()
+returns void
+language sql volatile security definer set search_path = public
+as $$
+  delete from public.tools where remove_on <= public.london_today();
+$$;
+
 -- Make the API see new or changed functions right away.
 notify pgrst, 'reload schema';

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { EventsCarousel } from '../components/EventsCarousel'
+import { ToolsRow } from '../components/ToolsRow'
 import { BreakdownBars, LevelBar, LevelLegend, ProgressChart } from '../components/charts'
 import { Avatar, Card, LevelBadge } from '../components/ui'
 import { DIMENSIONS, breakdown, levelCounts, weeklyProgress, type Dimension } from '../lib/stats'
@@ -44,6 +45,7 @@ export default function Dashboard() {
       </div>
 
       <EventsCarousel />
+      <ToolsRow />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Tile label="Classmates met" value={met} sub={`of ${total} · ${pct(met, total)}%`} />

@@ -117,6 +117,18 @@ export interface Notice {
 }
 export type NoticeInput = Pick<Notice, 'category' | 'title' | 'body' | 'link' | 'expires_on'>
 
+/** A useful tool: an HTML page uploaded by an admin, shown until remove_on. */
+export interface Tool {
+  id: string
+  title: string
+  description: string | null
+  icon: string
+  /** First day it is no longer shown (YYYY-MM-DD); null = no end date. */
+  remove_on: string | null
+  created_at: string
+}
+export type ToolInput = Pick<Tool, 'title' | 'description' | 'icon' | 'remove_on'> & { html?: string }
+
 /** Admin-only usage totals (see public.admin_usage). */
 export interface UsageData {
   cohort: number
@@ -191,6 +203,11 @@ export interface Api {
   listNotices(): Promise<Notice[]>
   saveNotice(input: NoticeInput, id?: string): Promise<Notice>
   deleteNotice(id: string): Promise<void>
+
+  listTools(): Promise<Tool[]>
+  getToolHtml(id: string): Promise<string>
+  saveTool(input: ToolInput, id?: string): Promise<Tool>
+  deleteTool(id: string): Promise<void>
 
   coffeeState(): Promise<CoffeeState>
   coffeeJoin(join: boolean): Promise<CoffeeState>

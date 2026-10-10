@@ -13,6 +13,7 @@ import type {
   SessionUser,
   Song,
   Student,
+  Tool,
   UsageData,
 } from './types'
 
@@ -162,6 +163,24 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     async deleteNotice(id) {
       check(await sb.from('notices').delete().eq('id', id))
+    },
+
+    async listTools() {
+      await sb.rpc('purge_expired_tools') // tidy up; harmless if it fails
+      return check(
+        await sb.from('tools').select('id, title, description, icon, remove_on, created_at').order('created_at', { ascending: false }),
+      ) as Tool[]
+    },
+    async getToolHtml(id) {
+      return (check(await sb.from('tools').select('html').eq('id', id).single()) as { html: string }).html
+    },
+    async saveTool(input, id) {
+      const cols = 'id, title, description, icon, remove_on, created_at'
+      const q = id ? sb.from('tools').update(input).eq('id', id) : sb.from('tools').insert(input)
+      return check(await q.select(cols).single()) as Tool
+    },
+    async deleteTool(id) {
+      check(await sb.from('tools').delete().eq('id', id))
     },
 
     async coffeeState() {
