@@ -117,6 +117,13 @@ export interface Notice {
 }
 export type NoticeInput = Pick<Notice, 'category' | 'title' | 'body' | 'link' | 'expires_on'>
 
+/** Admin-only: one day hour by hour (Oxford time), people active in each hour. */
+export interface DayActivity {
+  day: string
+  active: number
+  hours: { hour: number; n: number }[]
+}
+
 /** A useful tool: an HTML page uploaded by an admin, shown until remove_on. */
 export interface Tool {
   id: string
@@ -215,6 +222,7 @@ export interface Api {
 
   recordVisit(): Promise<void>
   adminUsage(): Promise<UsageData>
+  adminDay(day: string): Promise<DayActivity>
 
   listCustomTags(): Promise<CustomTag[]>
   addCustomTag(tag: CustomTag): Promise<void>
