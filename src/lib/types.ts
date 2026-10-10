@@ -80,10 +80,15 @@ export interface CalEvent {
   ends_at: string | null
   location: string | null
   link: string | null
+  /** Optional photo (public URL in the event-photos bucket). */
+  image_url: string | null
   created_by: string
   created_at: string
 }
-export type CalEventInput = Pick<CalEvent, 'title' | 'description' | 'starts_at' | 'ends_at' | 'location' | 'link'>
+export type CalEventInput = Pick<
+  CalEvent,
+  'title' | 'description' | 'starts_at' | 'ends_at' | 'location' | 'link' | 'image_url'
+>
 
 export interface Rsvp {
   event_id: string
@@ -177,6 +182,7 @@ export interface Api {
   listCalEvents(): Promise<CalEvent[]>
   saveCalEvent(input: CalEventInput, id?: string): Promise<CalEvent>
   deleteCalEvent(id: string): Promise<void>
+  uploadEventPhoto(file: Blob): Promise<string>
   listRsvps(): Promise<Rsvp[]>
   setRsvp(eventId: string, status: Rsvp['status'] | null): Promise<void>
   listSongs(): Promise<Song[]>

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Coffee } from '../components/Coffee'
 import { Avatar, Card, Field, Spinner, btnPrimary, btnSecondary, inputCls } from '../components/ui'
 import { api } from '../lib/api'
+import { resizeImage } from '../lib/image'
 import { callName } from '../lib/names'
 import { useStore } from '../lib/store'
 import type { CalEvent, CalEventInput, Notice, NoticeCategory, NoticeInput, Rsvp, Song, Student } from '../lib/types'
@@ -228,6 +229,7 @@ function EventCard({
       className={`scroll-mt-24 rounded-2xl ${highlight ? 'ring-2 ring-gold ring-offset-2 ring-offset-[#f7f8fb]' : ''}`}
     >
       <Card>
+        {e.image_url && <img src={e.image_url} alt="" className="mb-3 aspect-[8/5] w-full rounded-xl object-cover" />}
         <div className="flex gap-3">
           <div className="w-14 shrink-0 overflow-hidden rounded-xl text-center ring-1 ring-oxford-100">
             <div className="bg-oxford-900 py-0.5 text-[11px] font-semibold text-white uppercase">
@@ -336,8 +338,23 @@ function EventForm({ initial, onCancel, onSaved }: { initial: CalEvent | null; o
   const [location, setLocation] = useState(initial?.location ?? '')
   const [link, setLink] = useState(initial?.link ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
+  const [image, setImage] = useState<string | null>(initial?.image_url ?? null)
+  const [uploading, setUploading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const pickPhoto = async (file: File | undefined) => {
+    if (!file) return
+    setUploading(true)
+    setError(null)
+    try {
+      setImage(await api.uploadEventPhoto(await resizeImage(file, 1200, 750)))
+    } catch (err) {
+      setError(`Couldn’t upload the photo: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const submit = async () => {
     const l = safeLink(link)
@@ -350,6 +367,7 @@ function EventForm({ initial, onCancel, onSaved }: { initial: CalEvent | null; o
       location: location.trim() || null,
       link: l,
       description: description.trim() || null,
+      image_url: image,
     }
     setBusy(true)
     setError(null)
@@ -364,7 +382,7 @@ function EventForm({ initial, onCancel, onSaved }: { initial: CalEvent | null; o
   }
 
   return (
-    <FormCard title={initial ? 'Edit event' : 'New event'} onCancel={onCancel} onSubmit={submit} busy={busy} error={error} canSubmit={!!title.trim() && !!start}>
+    <FormCard title={initial ? 'Edit event' : 'New event'} onCancel={onCancel} onSubmit={submit} busy={busy} error={error} canSubmit={!!title.trim() && !!start && !uploading}>
       <Field label="What’s the plan?">
         <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="e.g. Pub quiz at The Eagle and Child" className={inputCls} required />
       </Field>
@@ -384,6 +402,27 @@ function EventForm({ initial, onCancel, onSaved }: { initial: CalEvent | null; o
       </Field>
       <Field label="Details (optional)">
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={2000} className={inputCls} />
+      </Field>
+      <Field label="Photo (optional)" hint="Shown on the event and in the home carousel." group>
+        {image ? (
+          <div className="space-y-2">
+            <img src={image} alt="" className="aspect-[8/5] w-full rounded-xl object-cover" />
+            <div className="flex gap-3 text-sm">
+              <label className="cursor-pointer font-semibold text-oxford-500 underline">
+                Change photo
+                <input type="file" accept="image/*" className="sr-only" onChange={(e) => pickPhoto(e.target.files?.[0])} />
+              </label>
+              <button type="button" className="text-red-700 underline" onClick={() => setImage(null)}>
+                Remove
+              </button>
+            </div>
+          </div>
+        ) : (
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 px-4 py-5 text-sm font-semibold text-oxford-700 hover:border-oxford-300">
+            {uploading ? 'Uploading…' : '📷 Add a photo'}
+            <input type="file" accept="image/*" className="sr-only" disabled={uploading} onChange={(e) => pickPhoto(e.target.files?.[0])} />
+          </label>
+        )}
       </Field>
     </FormCard>
   )

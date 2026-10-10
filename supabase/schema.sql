@@ -510,6 +510,29 @@ create table if not exists public.notices (
   created_at timestamptz not null default now()
 );
 
+-- Optional event photo: only images from the app's own event-photos bucket
+-- (so nobody can embed a tracking image from elsewhere).
+alter table public.cal_events add column if not exists image_url text
+  check (image_url ~ '^https://[^/]+/storage/v1/object/public/event-photos/[0-9a-f-]+/[0-9a-f-]+\.jpg$');
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('event-photos', 'event-photos', true, 2097152, array['image/jpeg'])
+on conflict (id) do nothing;
+
+-- Files live at event-photos/<user_id>/<random>.jpg
+drop policy if exists "members upload own event photos" on storage.objects;
+create policy "members upload own event photos" on storage.objects
+  for insert with check (
+    bucket_id = 'event-photos' and public.is_member() and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "owner or admin deletes event photos" on storage.objects;
+create policy "owner or admin deletes event photos" on storage.objects
+  for delete using (
+    bucket_id = 'event-photos' and public.is_member()
+    and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin())
+  );
+
 alter table public.cal_events enable row level security;
 alter table public.cal_rsvps enable row level security;
 alter table public.songs enable row level security;

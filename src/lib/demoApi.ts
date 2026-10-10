@@ -133,10 +133,10 @@ function seed(): DemoState {
     return d.toISOString()
   }
   const calEvents: CalEvent[] = [
-    { id: 'ev1', title: 'Pub quiz at The Eagle and Child', description: 'Teams of 4–6, mixing encouraged! First round on the winners.', starts_at: iso(2, 19), ends_at: iso(2, 22), location: 'The Eagle and Child, St Giles', link: null, created_by: 'demo-u-0', created_at: iso(-1) },
-    { id: 'ev2', title: 'Sunday hike to Shotover', description: 'Easy 8 km walk, back for lunch.', starts_at: iso(5, 10), ends_at: null, location: 'Meet at Carfax Tower', link: null, created_by: 'demo-u-3', created_at: iso(-2) },
-    { id: 'ev3', title: 'Latin American dinner', description: 'Bring a dish from home 🌮', starts_at: iso(9, 19), ends_at: null, location: 'Kellogg College common room', link: 'https://example.com/signup', created_by: 'demo-u-5', created_at: iso(-3) },
-    { id: 'ev4', title: 'Welcome drinks', description: null, starts_at: iso(-4, 18), ends_at: null, location: 'BSG café', link: null, created_by: 'demo-u-1', created_at: iso(-10) },
+    { id: 'ev1', title: 'Pub quiz at The Eagle and Child', description: 'Teams of 4–6, mixing encouraged! First round on the winners.', starts_at: iso(2, 19), ends_at: iso(2, 22), location: 'The Eagle and Child, St Giles', link: null, image_url: null, created_by: 'demo-u-0', created_at: iso(-1) },
+    { id: 'ev2', title: 'Sunday hike to Shotover', description: 'Easy 8 km walk, back for lunch.', starts_at: iso(5, 10), ends_at: null, location: 'Meet at Carfax Tower', link: null, image_url: null, created_by: 'demo-u-3', created_at: iso(-2) },
+    { id: 'ev3', title: 'Latin American dinner', description: 'Bring a dish from home 🌮', starts_at: iso(9, 19), ends_at: null, location: 'Kellogg College common room', link: 'https://example.com/signup', image_url: null, created_by: 'demo-u-5', created_at: iso(-3) },
+    { id: 'ev4', title: 'Welcome drinks', description: null, starts_at: iso(-4, 18), ends_at: null, location: 'BSG café', link: null, image_url: null, created_by: 'demo-u-1', created_at: iso(-10) },
   ]
   const rsvps: Rsvp[] = [
     ...['demo-u-0', 'demo-u-1', 'demo-u-2', 'demo-u-4', 'demo-u-6'].map((u) => ({ event_id: 'ev1', user_id: u, status: 'going' as const })),
@@ -354,6 +354,14 @@ export function createDemoApi(): Api {
       }
       save()
       return clone(ev)
+    },
+    async uploadEventPhoto(file) {
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(reader.error)
+        reader.readAsDataURL(file)
+      })
     },
     async deleteCalEvent(id) {
       state.calEvents = state.calEvents.filter((e) => e.id !== id)
