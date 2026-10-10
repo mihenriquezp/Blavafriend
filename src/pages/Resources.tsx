@@ -229,7 +229,6 @@ function EventCard({
       className={`scroll-mt-24 rounded-2xl ${highlight ? 'ring-2 ring-gold ring-offset-2 ring-offset-[#f7f8fb]' : ''}`}
     >
       <Card>
-        {e.image_url && <img src={e.image_url} alt="" className="mb-3 aspect-[8/5] w-full rounded-xl object-cover" />}
         <div className="flex gap-3">
           <div className="w-14 shrink-0 overflow-hidden rounded-xl text-center ring-1 ring-oxford-100">
             <div className="bg-oxford-900 py-0.5 text-[11px] font-semibold text-white uppercase">
@@ -253,6 +252,11 @@ function EventCard({
               )}
             </div>
           </div>
+          {e.image_url && (
+            <a href={e.image_url} target="_blank" rel="noreferrer noopener" className="shrink-0" title="Open photo">
+              <img src={e.image_url} alt="" loading="lazy" className="h-16 w-16 rounded-xl object-cover ring-1 ring-gray-200" />
+            </a>
+          )}
         </div>
         {e.description && <p className="mt-3 text-sm whitespace-pre-line text-gray-700">{e.description}</p>}
 
