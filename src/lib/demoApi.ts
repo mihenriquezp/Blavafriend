@@ -8,6 +8,7 @@ import type {
   CalEvent,
   CoffeeState,
   CustomTag,
+  Tool,
   Notice,
   Relationship,
   RelationshipEvent,
@@ -31,6 +32,7 @@ interface DemoState {
   songs: Song[]
   notices: Notice[]
   /** Added later, so older saved demos may not have it. Rounds hold groups of student ids. */
+  tools?: (Tool & { html: string })[]
   coffee?: { auto: boolean; entries: Record<string, boolean>; rounds: Record<string, string[][]> }
 }
 
@@ -193,6 +195,19 @@ export function createDemoApi(): Api {
   }
 
   const coffee = () => (state.coffee ??= { auto: false, entries: {}, rounds: {} })
+  // A fictional sample tool so the "Useful tools" row has something to show.
+  const tools = () =>
+    (state.tools ??= [
+      {
+        id: 'tool-1',
+        title: 'Tip splitter',
+        description: 'Split a restaurant bill between friends, tip included.',
+        icon: '🧮',
+        remove_on: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
+        created_at: new Date().toISOString(),
+        html: DEMO_TOOL_HTML,
+      },
+    ])
   const myId = () => state.students.find((s) => s.user_id === DEMO_USER.id)?.id
   const inRound = (round: string) => coffee().entries[round] ?? coffee().auto
   // Fictional classmates in a round: a stable ~45% of everyone else.
@@ -407,6 +422,33 @@ export function createDemoApi(): Api {
       save()
     },
 
+    async listTools() {
+      const today = new Date().toISOString().slice(0, 10)
+      return tools()
+        .filter((t) => !t.remove_on || t.remove_on > today)
+        .map(({ html: _html, ...t }) => clone(t))
+    },
+    async getToolHtml(id) {
+      const t = tools().find((x) => x.id === id)
+      if (!t) throw new Error('Tool not found')
+      return t.html
+    },
+    async saveTool(input, id) {
+      let t = id ? tools().find((x) => x.id === id) : undefined
+      if (t) Object.assign(t, input)
+      else {
+        t = { html: '', ...input, id: crypto.randomUUID(), created_at: new Date().toISOString() }
+        tools().unshift(t)
+      }
+      save()
+      const { html: _html, ...rest } = t
+      return clone(rest)
+    },
+    async deleteTool(id) {
+      state.tools = tools().filter((t) => t.id !== id)
+      save()
+    },
+
     async coffeeState() {
       return coffeeState()
     },
@@ -500,6 +542,19 @@ export function createDemoApi(): Api {
     },
   }
 }
+
+const DEMO_TOOL_HTML = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{font-family:system-ui,sans-serif;padding:20px;color:#002147}input{font-size:18px;padding:8px;width:100%;box-sizing:border-box;margin:4px 0 12px}
+b{font-size:28px}</style>
+<h2>Tip splitter</h2>
+<label>Bill (£)<input id="bill" type="number" value="84"></label>
+<label>Tip (%)<input id="tip" type="number" value="12.5"></label>
+<label>People<input id="n" type="number" value="4"></label>
+<p>Each pays <b id="out"></b></p>
+<script>
+const f = () => { const t = +bill.value * (1 + +tip.value / 100) / Math.max(1, +n.value); out.textContent = '£' + t.toFixed(2) }
+document.querySelectorAll('input').forEach((i) => i.oninput = f); f()
+</script>`
 
 export function resetDemo() {
   try {

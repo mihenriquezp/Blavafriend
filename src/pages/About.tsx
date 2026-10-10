@@ -67,6 +67,10 @@ export default function About() {
           </li>
           <li>Profile photos are stored at an unguessable link that isn't listed anywhere public.</li>
           <li>
+            Useful tools on the home page run in a sealed-off frame: they can’t see your account or anything you’ve marked in
+            Blavafriend, and whatever a tool saves stays on your device.
+          </li>
+          <li>
             To count how many people use the app, it records on which days and at what hour your account opened it, nothing about what you did.
             In the app, the admin only sees totals (e.g. “26 active this week”), never who was active.
           </li>
