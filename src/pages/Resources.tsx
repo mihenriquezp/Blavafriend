@@ -90,6 +90,8 @@ export default function Resources() {
 
 function Events() {
   const { user, isAdmin } = useStore()
+  const [params] = useSearchParams()
+  const target = params.get('event')
   const author = useAuthors()
   const [events, setEvents] = useState<CalEvent[] | null>(null)
   const [rsvps, setRsvps] = useState<Rsvp[]>([])
@@ -109,6 +111,18 @@ function Events() {
   useEffect(() => {
     load()
   }, [load])
+
+  // Opened from the home carousel: bring that event into view.
+  useEffect(() => {
+    const ev = target && events?.find((e) => e.id === target)
+    if (!ev) return
+    if (new Date(ev.ends_at ?? ev.starts_at).getTime() + 3 * 3600_000 < Date.now()) setShowPast(true)
+    const t = window.setTimeout(
+      () => document.getElementById(`event-${ev.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+      150,
+    )
+    return () => window.clearTimeout(t)
+  }, [events, target])
 
   if (error) return <p className="text-red-700">Couldn’t load events: {error}</p>
   if (!events) return <Spinner />
@@ -133,6 +147,7 @@ function Events() {
   const card = (e: CalEvent) => (
     <EventCard
       key={e.id}
+      highlight={e.id === target}
       event={e}
       rsvps={rsvps.filter((r) => r.event_id === e.id)}
       myId={user!.id}
@@ -178,6 +193,7 @@ function Events() {
 }
 
 function EventCard({
+  highlight,
   event: e,
   rsvps,
   myId,
@@ -187,6 +203,7 @@ function EventCard({
   onEdit,
   onDelete,
 }: {
+  highlight?: boolean
   event: CalEvent
   rsvps: Rsvp[]
   myId: string
@@ -206,77 +223,82 @@ function EventCard({
   const endTime = e.ends_at ? dateFmt(e.ends_at, { hour: '2-digit', minute: '2-digit' }) : null
 
   return (
-    <Card>
-      <div className="flex gap-3">
-        <div className="w-14 shrink-0 overflow-hidden rounded-xl text-center ring-1 ring-oxford-100">
-          <div className="bg-oxford-900 py-0.5 text-[11px] font-semibold text-white uppercase">
-            {start.toLocaleString('en-GB', { month: 'short' })}
-          </div>
-          <div className="font-display text-2xl font-bold text-oxford-900">{start.getDate()}</div>
-          <div className="pb-1 text-[10px] text-gray-500">{start.toLocaleString('en-GB', { weekday: 'short' })}</div>
-        </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-oxford-900">{e.title}</h3>
-          <div className="mt-0.5 space-y-0.5 text-sm text-gray-600">
-            <div>
-              🕒 {time}
-              {endTime && ` – ${endTime}`}
+    <div
+      id={`event-${e.id}`}
+      className={`scroll-mt-24 rounded-2xl ${highlight ? 'ring-2 ring-gold ring-offset-2 ring-offset-[#f7f8fb]' : ''}`}
+    >
+      <Card>
+        <div className="flex gap-3">
+          <div className="w-14 shrink-0 overflow-hidden rounded-xl text-center ring-1 ring-oxford-100">
+            <div className="bg-oxford-900 py-0.5 text-[11px] font-semibold text-white uppercase">
+              {start.toLocaleString('en-GB', { month: 'short' })}
             </div>
-            {e.location && <div>📍 {e.location}</div>}
-            {e.link && (
-              <a href={e.link} target="_blank" rel="noreferrer noopener" className="block truncate text-oxford-500 underline">
-                🔗 {e.link.replace(/^https?:\/\/(www\.)?/, '')}
-              </a>
-            )}
+            <div className="font-display text-2xl font-bold text-oxford-900">{start.getDate()}</div>
+            <div className="pb-1 text-[10px] text-gray-500">{start.toLocaleString('en-GB', { weekday: 'short' })}</div>
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-oxford-900">{e.title}</h3>
+            <div className="mt-0.5 space-y-0.5 text-sm text-gray-600">
+              <div>
+                🕒 {time}
+                {endTime && ` – ${endTime}`}
+              </div>
+              {e.location && <div>📍 {e.location}</div>}
+              {e.link && (
+                <a href={e.link} target="_blank" rel="noreferrer noopener" className="block truncate text-oxford-500 underline">
+                  🔗 {e.link.replace(/^https?:\/\/(www\.)?/, '')}
+                </a>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-      {e.description && <p className="mt-3 text-sm whitespace-pre-line text-gray-700">{e.description}</p>}
+        {e.description && <p className="mt-3 text-sm whitespace-pre-line text-gray-700">{e.description}</p>}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button
-          onClick={() => onRsvp(mine === 'going' ? null : 'going')}
-          className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
-            mine === 'going' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-          }`}
-          aria-pressed={mine === 'going'}
-        >
-          {mine === 'going' ? '✓ Going' : 'I’m going'}
-        </button>
-        <button
-          onClick={() => onRsvp(mine === 'maybe' ? null : 'maybe')}
-          className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
-            mine === 'maybe' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
-          }`}
-          aria-pressed={mine === 'maybe'}
-        >
-          {mine === 'maybe' ? '✓ Maybe' : 'Maybe'}
-        </button>
-        <button onClick={() => setShowWho((v) => !v)} className="ml-auto flex items-center gap-2 text-sm text-gray-600">
-          <span className="flex -space-x-1">
-            {going.slice(0, 5).map((r) => {
-              const s = author(r.user_id)
-              return s ? (
-                <span key={r.user_id} className="inline-flex rounded-full ring-2 ring-white">
-                  <Avatar name={s.full_name} url={s.photo_url} size={26} />
-                </span>
-              ) : null
-            })}
-          </span>
-          <span>
-            <b>{going.length}</b> going{maybe.length ? ` · ${maybe.length} maybe` : ''}
-          </span>
-        </button>
-      </div>
-      {showWho && (going.length > 0 || maybe.length > 0) && (
-        <div className="mt-2 space-y-1 rounded-xl bg-gray-50 p-3 text-sm">
-          <WhoList label="Going" rows={going} author={author} />
-          <WhoList label="Maybe" rows={maybe} author={author} />
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => onRsvp(mine === 'going' ? null : 'going')}
+            className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
+              mine === 'going' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+            }`}
+            aria-pressed={mine === 'going'}
+          >
+            {mine === 'going' ? '✓ Going' : 'I’m going'}
+          </button>
+          <button
+            onClick={() => onRsvp(mine === 'maybe' ? null : 'maybe')}
+            className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
+              mine === 'maybe' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+            }`}
+            aria-pressed={mine === 'maybe'}
+          >
+            {mine === 'maybe' ? '✓ Maybe' : 'Maybe'}
+          </button>
+          <button onClick={() => setShowWho((v) => !v)} className="ml-auto flex items-center gap-2 text-sm text-gray-600">
+            <span className="flex -space-x-1">
+              {going.slice(0, 5).map((r) => {
+                const s = author(r.user_id)
+                return s ? (
+                  <span key={r.user_id} className="inline-flex rounded-full ring-2 ring-white">
+                    <Avatar name={s.full_name} url={s.photo_url} size={26} />
+                  </span>
+                ) : null
+              })}
+            </span>
+            <span>
+              <b>{going.length}</b> going{maybe.length ? ` · ${maybe.length} maybe` : ''}
+            </span>
+          </button>
         </div>
-      )}
+        {showWho && (going.length > 0 || maybe.length > 0) && (
+          <div className="mt-2 space-y-1 rounded-xl bg-gray-50 p-3 text-sm">
+            <WhoList label="Going" rows={going} author={author} />
+            <WhoList label="Maybe" rows={maybe} author={author} />
+          </div>
+        )}
 
-      <PostFooter by={by} at={e.created_at} canEdit={canEdit} onEdit={onEdit} onDelete={onDelete} />
-    </Card>
+        <PostFooter by={by} at={e.created_at} canEdit={canEdit} onEdit={onEdit} onDelete={onDelete} />
+      </Card>
+    </div>
   )
 }
 
