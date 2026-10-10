@@ -470,6 +470,13 @@ export function createDemoApi(): Api {
     },
 
     async recordVisit() {},
+    async adminDay(day) {
+      // Fictional: a daily rhythm that varies from day to day.
+      const r = rng(hash(day))
+      const shape = [1, 0, 0, 0, 0, 0, 1, 3, 6, 7, 5, 5, 9, 8, 5, 4, 5, 7, 9, 12, 15, 16, 11, 5]
+      const hours = shape.map((v, hour) => ({ hour, n: Math.round(v * (0.4 + r() * 0.9)) }))
+      return { day, active: Math.round(Math.max(...hours.map((h) => h.n)) * 2.2), hours }
+    },
     async adminUsage() {
       // Fictional usage numbers for the demo.
       const r = rng(11)

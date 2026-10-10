@@ -714,6 +714,46 @@ begin
 end;
 $$;
 
+-- One day hour by hour (Oxford time): how many different people were active in
+-- each hour. Totals only, for admins.
+create or replace function public.admin_day(p_day date)
+returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp
+as $$
+declare
+  result jsonb;
+begin
+  if not public.is_admin() then
+    raise exception 'Only admins can see usage stats';
+  end if;
+
+  with
+  acts as (
+    select user_id, hour from public.app_visit_hours where day = p_day
+    union
+    select who, extract(hour from at at time zone 'Europe/London')::smallint
+    from (
+      select owner_id as who, created_at as at from public.relationship_events
+      union all select created_by, created_at from public.cal_events
+      union all select created_by, created_at from public.songs
+      union all select created_by, created_at from public.notices
+      union all select user_id, created_at from public.cal_rsvps
+      union all select user_id, created_at from public.coffee_entries
+    ) a
+    where (at at time zone 'Europe/London')::date = p_day
+  )
+  select jsonb_build_object(
+    'day', p_day,
+    'active', (select count(distinct user_id) from acts),
+    'hours', (
+      select jsonb_agg(jsonb_build_object('hour', h, 'n', (select count(distinct user_id) from acts where hour = h)) order by h)
+      from generate_series(0, 23) h
+    )
+  ) into result;
+  return result;
+end;
+$$;
+
 -------------------------------------------------------------------------------
 -- Coffee roulette (weekly random coffee matches)
 -------------------------------------------------------------------------------

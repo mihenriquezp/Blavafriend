@@ -4,6 +4,7 @@ import type {
   Api,
   CalEvent,
   CoffeeState,
+  DayActivity,
   CohortData,
   CustomTag,
   Notice,
@@ -198,6 +199,9 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     async adminUsage() {
       return check(await sb.rpc('admin_usage')) as UsageData
+    },
+    async adminDay(day) {
+      return check(await sb.rpc('admin_day', { p_day: day })) as DayActivity
     },
 
     async listCustomTags() {

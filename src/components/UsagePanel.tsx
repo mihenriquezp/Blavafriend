@@ -1,7 +1,8 @@
 import { area, curveMonotoneX, line } from 'd3-shape'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
-import type { UsageData } from '../lib/types'
+import { addDays, londonToday } from '../lib/coffee'
+import type { DayActivity, UsageData } from '../lib/types'
 import { Card, Spinner } from './ui'
 
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0)
@@ -53,6 +54,10 @@ export function UsagePanel() {
         Average people active per day in each hour, last 30 days (Oxford time). Counts app opens and actions.
       </p>
       <HourlyChart hourly={data.hourly} />
+
+      <h3 className="mt-5 mb-0.5 text-sm font-semibold text-oxford-900">One day, hour by hour</h3>
+      <p className="mb-2 text-[11px] text-gray-500">People active in each hour of the chosen day (Oxford time).</p>
+      <DayFlow />
 
       <h3 className="mt-5 mb-2 text-sm font-semibold text-oxford-900">Level changes per day</h3>
       <DailyBars days={data.daily} pick={(d) => d.changes} unit="changes" />
@@ -311,6 +316,113 @@ function Row({ label, value }: { label: string; value: number | string }) {
       <span>{label}</span>
       <b className="text-oxford-900 tabular-nums">{value}</b>
     </li>
+  )
+}
+
+function DayFlow() {
+  const today = londonToday()
+  const [day, setDay] = useState(today)
+  const [data, setData] = useState<DayActivity | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [hover, setHover] = useState<number | null>(null)
+
+  useEffect(() => {
+    let live = true
+    setError(null)
+    api.adminDay(day).then(
+      (d) => live && setData(d),
+      (e) => live && setError(e instanceof Error ? e.message : String(e)),
+    )
+    return () => {
+      live = false
+    }
+  }, [day])
+
+  const step = (n: number) => {
+    const next = addDays(day, n)
+    if (next <= today) setDay(next)
+  }
+  const btn = 'grid h-8 w-8 place-items-center rounded-lg bg-white text-oxford-900 ring-1 ring-gray-200 disabled:opacity-30'
+  const hours = data?.day === day ? data.hours : null
+  const max = Math.max(1, ...(hours ?? []).map((h) => h.n))
+  const peak = hours?.reduce((a, b) => (b.n > a.n ? b : a), hours[0])
+  const shown = hover !== null && hours ? hours[hover] : null
+
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <button type="button" className={btn} onClick={() => step(-1)} aria-label="Previous day">
+          ‹
+        </button>
+        <input
+          type="date"
+          value={day}
+          max={today}
+          onChange={(e) => e.target.value && setDay(e.target.value <= today ? e.target.value : today)}
+          className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm"
+          aria-label="Day"
+        />
+        <button type="button" className={btn} onClick={() => step(1)} disabled={day >= today} aria-label="Next day">
+          ›
+        </button>
+        {day !== today && (
+          <button type="button" className="text-xs font-semibold text-oxford-500 underline" onClick={() => setDay(today)}>
+            Today
+          </button>
+        )}
+      </div>
+      {error && <p className="text-xs text-red-700">{error}</p>}
+      {!hours && !error && <div className="h-28 animate-pulse rounded-lg bg-gray-100" />}
+      {hours && data && (
+        <>
+          <div className="mb-1 text-xs text-gray-600" aria-live="polite">
+            {shown ? (
+              <>
+                {hh(shown.hour)}–{hh((shown.hour + 1) % 24)}: <b className="text-oxford-900">{shown.n}</b>{' '}
+                {shown.n === 1 ? 'person' : 'people'}
+              </>
+            ) : (
+              <>
+                <b className="text-oxford-900">{data.active}</b> {data.active === 1 ? 'person' : 'people'} active
+                {peak && peak.n > 0 && (
+                  <>
+                    {' '}
+                    · busiest <b className="text-oxford-900">{hh(peak.hour)}</b> ({peak.n})
+                  </>
+                )}
+              </>
+            )}
+          </div>
+          <div
+            className="flex h-28 items-end gap-[2px]"
+            role="img"
+            aria-label={`People active per hour on ${fmtDay(day)}`}
+            onMouseLeave={() => setHover(null)}
+          >
+            {hours.map((h) => (
+              <div
+                key={h.hour}
+                className="flex h-full flex-1 cursor-default items-end"
+                onMouseEnter={() => setHover(h.hour)}
+                onClick={() => setHover(hover === h.hour ? null : h.hour)}
+              >
+                <div
+                  className={`w-full rounded-t ${hover === h.hour ? 'bg-oxford-900' : 'bg-[#2a78d6]'}`}
+                  style={{ height: `${Math.max(h.n ? 4 : 1, (h.n / max) * 100)}%`, opacity: h.n ? 1 : 0.25 }}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="relative mt-1 h-3 text-[10px] text-gray-400">
+            {[0, 6, 12, 18].map((h) => (
+              <span key={h} className="absolute -translate-x-1/2" style={{ left: `${((h + 0.5) / 24) * 100}%` }}>
+                {hh(h)}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
