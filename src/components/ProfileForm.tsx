@@ -1,34 +1,11 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
+import { resizeImage } from '../lib/image'
 import { COLLEGES, FAMILY_OPTIONS, GENDER_OPTIONS, HOBBY_GROUPS, POLICY_INTERESTS, ROLE_OPTIONS } from '../lib/options'
 import { MONTHS, daysInMonth } from '../lib/birthdays'
 import { useStore } from '../lib/store'
 import type { Student, StudentPatch } from '../lib/types'
 import { Avatar, CountryPicker, Field, TagPicker, btnPrimary, btnSecondary, inputCls } from './ui'
-
-async function resizeImage(file: File, max = 640): Promise<Blob> {
-  const bitmap = await createImageBitmap(file)
-  const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height))
-  // Crop to a centred square so avatars look consistent.
-  const side = Math.min(bitmap.width, bitmap.height)
-  const out = Math.round(side * scale)
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = out
-  canvas.getContext('2d')!.drawImage(
-    bitmap,
-    (bitmap.width - side) / 2,
-    (bitmap.height - side) / 2,
-    side,
-    side,
-    0,
-    0,
-    out,
-    out,
-  )
-  return await new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not process image'))), 'image/jpeg', 0.85),
-  )
-}
 
 export function ProfileForm({ student, onDone }: { student: Student; onDone?: () => void }) {
   const { updateStudent, hobbyOptions, languageOptions, degreeOptions, addTag, isAdmin } = useStore()
@@ -87,7 +64,7 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
     setBusy(true)
     setMsg(null)
     try {
-      const blob = await resizeImage(file)
+      const blob = await resizeImage(file, 640, 640)
       set('photo_url', await api.uploadPhoto(student.id, blob))
       setMsg({ ok: true, text: 'Photo uploaded. Remember to save.' })
     } catch (e) {

@@ -126,6 +126,15 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     async deleteCalEvent(id) {
       check(await sb.from('cal_events').delete().eq('id', id))
     },
+    async uploadEventPhoto(file) {
+      const { data } = await sb.auth.getSession()
+      const uid = data.session?.user.id
+      if (!uid) throw new Error('Not signed in')
+      const path = `${uid}/${crypto.randomUUID()}.jpg`
+      const { error } = await sb.storage.from('event-photos').upload(path, file, { contentType: 'image/jpeg', upsert: false })
+      if (error) throw new Error(error.message)
+      return sb.storage.from('event-photos').getPublicUrl(path).data.publicUrl
+    },
     async listRsvps() {
       return check(await sb.from('cal_rsvps').select('event_id, user_id, status')) as Rsvp[]
     },

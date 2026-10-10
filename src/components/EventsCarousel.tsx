@@ -103,27 +103,30 @@ export function EventsCarousel() {
             <Link
               key={e.id}
               to={`/resources?tab=events&event=${e.id}`}
-              className="w-[78%] max-w-[280px] shrink-0 snap-start overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-200 transition hover:ring-oxford-300 sm:w-[260px]"
+              className="w-[44%] max-w-[180px] shrink-0 snap-start overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-200 transition hover:ring-oxford-300 sm:w-[180px]"
             >
-              <div className={`relative h-24 bg-gradient-to-br ${themeOf(e.id)} p-3 text-white`}>
-                <div className="text-[11px] font-semibold tracking-wide uppercase opacity-80">
-                  {fmt(e.starts_at, { weekday: 'long' })}
-                </div>
-                <div className="font-display text-3xl leading-tight font-bold">
-                  {fmt(e.starts_at, { day: 'numeric', month: 'short' })}
-                </div>
-                <div className="text-sm opacity-90">{fmt(e.starts_at, { hour: '2-digit', minute: '2-digit' })}</div>
+              <div className={`relative aspect-[8/5] bg-gradient-to-br ${themeOf(e.id)}`}>
+                {e.image_url ? (
+                  <img src={e.image_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="grid h-full place-items-center font-display text-5xl font-bold text-white/35" aria-hidden>
+                    {e.title.trim().charAt(0).toUpperCase()}
+                  </span>
+                )}
                 {going > 0 && (
-                  <span className="absolute top-3 right-3 rounded-full bg-white/20 px-2 py-0.5 text-xs font-semibold backdrop-blur">
+                  <span className="absolute top-2 right-2 rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur">
                     {going} going
                   </span>
                 )}
               </div>
-              <div className="p-3">
-                <div className="line-clamp-2 min-h-[2.5rem] text-sm leading-5 font-semibold text-oxford-900">
+              <div className="p-2.5">
+                <div className="line-clamp-2 min-h-[2.5rem] text-[15px] leading-5 font-bold text-oxford-900">
                   {e.title}
                 </div>
-                <div className="mt-1 truncate text-xs text-gray-500">{e.location ? `📍 ${e.location}` : '\u00a0'}</div>
+                <div className="mt-1 truncate text-xs text-gray-500">
+                  {fmt(e.starts_at, { weekday: 'short', day: 'numeric', month: 'short' })} ·{' '}
+                  {fmt(e.starts_at, { hour: '2-digit', minute: '2-digit' })}
+                </div>
               </div>
             </Link>
           )
