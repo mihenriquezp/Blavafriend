@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { EventsCarousel } from '../components/EventsCarousel'
 import { BreakdownBars, LevelBar, LevelLegend, ProgressChart } from '../components/charts'
 import { Avatar, Card, LevelBadge } from '../components/ui'
 import { DIMENSIONS, breakdown, levelCounts, weeklyProgress, type Dimension } from '../lib/stats'
@@ -41,6 +42,8 @@ export default function Dashboard() {
         <h1 className="font-display text-2xl font-bold text-oxford-900">Hi {me && callName(me)} 👋</h1>
         <p className="text-sm text-gray-500">Your private overview of the {total + 1}-strong cohort. Only you see this.</p>
       </div>
+
+      <EventsCarousel />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Tile label="Classmates met" value={met} sub={`of ${total} · ${pct(met, total)}%`} />
