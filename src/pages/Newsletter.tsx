@@ -71,6 +71,12 @@ export default function NewsletterPage() {
   const [hideDone, setHideDone] = useState(false)
 
   const nl = useMemo(() => (id ? newsletters?.find((n) => n.id === id) : newsletters?.[0]) ?? null, [id, newsletters])
+  // Count this opening (once per person per day; totals only, for admins).
+  const nlId = nl?.id
+  useEffect(() => {
+    if (nlId) api.newsletterView(nlId).catch(() => {})
+  }, [nlId])
+
   const groups = useMemo(() => {
     const out: [string, NewsletterItem[]][] = []
     for (const item of nl?.items ?? []) {

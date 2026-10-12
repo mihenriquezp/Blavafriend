@@ -149,6 +149,29 @@ export interface Newsletter {
 }
 export type NewsletterInput = Pick<Newsletter, 'title' | 'week_of' | 'intro' | 'items'>
 
+/** Admin-only: how the newsletter checklists are used (totals; admins left out). */
+export interface NewsletterStats {
+  students: number
+  newsletters: {
+    id: string
+    title: string
+    week_of: string
+    items: number
+    /** People who opened the checklist (and total person-days). */
+    viewers: number
+    visits: number
+    /** People who ticked at least one item. */
+    tickers: number
+    /** Among those, average and median share of the checklist ticked (%). */
+    avg_share: number
+    median_share: number
+    complete: number
+    /** People by share ticked: ≤25%, 26–50%, 51–75%, 76–99%, 100%. */
+    buckets: number[]
+    item_ticks: { title: string; ticks: number }[]
+  }[]
+}
+
 /** Admin-only: how each useful tool was used (totals; admins' own visits left out). */
 export interface ToolStats {
   /** Students with a claimed profile, for percentages. */
@@ -264,6 +287,9 @@ export interface Api {
   /** Your own ticks (private). */
   listNewsletterChecks(): Promise<{ newsletter_id: string; item_id: string }[]>
   setNewsletterCheck(newsletterId: string, itemId: string, checked: boolean): Promise<void>
+  /** Counts an opening of the checklist (once per person per day). */
+  newsletterView(id: string): Promise<void>
+  adminNewsletterStats(): Promise<NewsletterStats>
 
   listTools(): Promise<Tool[]>
   getToolHtml(id: string): Promise<string>

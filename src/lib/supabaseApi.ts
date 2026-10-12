@@ -6,6 +6,7 @@ import type {
   CoffeeState,
   DayActivity,
   Newsletter,
+  NewsletterStats,
   CohortData,
   CustomTag,
   Notice,
@@ -192,6 +193,13 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
             .upsert({ newsletter_id: newsletterId, item_id: itemId }, { onConflict: 'newsletter_id,item_id,user_id' }),
         )
       else check(await sb.from('newsletter_checks').delete().eq('newsletter_id', newsletterId).eq('item_id', itemId))
+    },
+
+    async newsletterView(id) {
+      await sb.rpc('newsletter_view', { p_newsletter: id })
+    },
+    async adminNewsletterStats() {
+      return check(await sb.rpc('admin_newsletter_stats')) as NewsletterStats
     },
 
     async listTools() {
