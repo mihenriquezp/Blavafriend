@@ -91,6 +91,12 @@ export default function NewsletterPage() {
     )
 
   const isDone = (item: NewsletterItem) => checks.has(`${nl.id}/${item.id}`)
+  const today = londonToday()
+  // Deadlines still ahead and not ticked, soonest first.
+  const upcoming = nl.items
+    .filter((i) => i.due && i.due >= today && !isDone(i))
+    .sort((a, b) => a.due!.localeCompare(b.due!))
+    .slice(0, 6)
   const done = nl.items.filter(isDone).length
   const total = nl.items.length
 
@@ -145,6 +151,28 @@ export default function NewsletterPage() {
       </div>
 
       {error && <p className="rounded-lg bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+
+      {upcoming.length > 0 && (
+        <section className="rounded-2xl bg-amber-50 p-3 ring-1 ring-amber-200">
+          <h2 className="mb-1.5 text-xs font-bold tracking-wide text-amber-900 uppercase">⏰ Coming up</h2>
+          <ul>
+            {upcoming.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => setOpen(item)}
+                  className="flex w-full items-baseline gap-2 rounded-lg px-1 py-1 text-left text-sm hover:bg-amber-100"
+                >
+                  <span className="w-16 shrink-0 text-xs font-semibold text-amber-900">
+                    {fmtDay(item.due!, { day: 'numeric', month: 'short' })}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-oxford-900">{item.title}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {groups.map(([category, items]) => {
         const shown = hideDone ? items.filter((i) => !isDone(i)) : items

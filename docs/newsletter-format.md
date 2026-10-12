@@ -1,7 +1,11 @@
 # Newsletter checklist format
 
-Each Friday's programme newsletter is turned into a checklist and pasted as JSON
-in **Admin → 📰 Newsletters → ＋ Add**. Publishing a second newsletter for the
+Each Friday's programme newsletter becomes a checklist in **Admin → 📰 Newsletters
+→ ＋ Add**: upload the email as it arrives (`.eml` or `.msg` saved from Outlook)
+and `src/lib/newsletterParse.ts` turns it into the JSON below (sections = 20px
+headings, items = 18px bold titles, a bold line under a title = its time, and
+deadlines found in phrases like "closes at … on Wednesday 14 October"). The JSON
+appears in the box and can be edited before publishing, or written by hand. Publishing a second newsletter for the
 same `week_of` replaces the first; ticks on items that keep the same `id` stay.
 
 ```json
