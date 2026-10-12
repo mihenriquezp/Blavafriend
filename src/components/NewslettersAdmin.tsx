@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { fmtDay } from '../lib/coffee'
+import { parseNewsletterHtml, readEmailFile } from '../lib/newsletterParse'
 import type { Newsletter, NewsletterInput, NewsletterItem } from '../lib/types'
 import { Card, btnPrimary, btnSecondary, inputCls } from './ui'
 
@@ -56,6 +57,23 @@ export function NewslettersAdmin() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [reading, setReading] = useState(false)
+
+  // Upload the email as it arrives (.eml or .msg): it's turned into the JSON below, which can still be edited.
+  const upload = async (file: File | undefined) => {
+    if (!file) return
+    setReading(true)
+    setError(null)
+    try {
+      const { subject, date, html } = await readEmailFile(file)
+      if (!html) throw new Error('This email has no HTML body to read.')
+      check(JSON.stringify(parseNewsletterHtml(html, subject, date), null, 1))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setReading(false)
+    }
+  }
 
   const load = useCallback(() => api.listNewsletters().then(setList, (e) => setError(String(e))), [])
   useEffect(() => {
@@ -108,8 +126,25 @@ export function NewslettersAdmin() {
       </div>
       {adding && (
         <div className="mb-3 space-y-2 rounded-xl bg-oxford-50/60 p-3">
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-4 text-sm font-semibold text-oxford-700 hover:border-oxford-300">
+            {reading ? 'Reading the email…' : '✉️ Upload the newsletter email (.eml or .msg)'}
+            <input
+              type="file"
+              accept=".eml,.msg,message/rfc822,application/vnd.ms-outlook"
+              className="sr-only"
+              disabled={reading}
+              onChange={(e) => {
+                upload(e.target.files?.[0])
+                e.target.value = ''
+              }}
+            />
+          </label>
+          <p className="text-xs text-gray-500">
+            In Outlook: open the email → File → Save as (.msg), or drag it to your desktop. Personal tracking codes in
+            links are removed automatically. You can also paste or edit the JSON below.
+          </p>
           <label className="block text-sm font-semibold text-oxford-900" htmlFor="nl-json">
-            Paste the newsletter (JSON)
+            Newsletter (JSON)
           </label>
           <textarea
             id="nl-json"
@@ -122,10 +157,23 @@ export function NewslettersAdmin() {
           />
           {error && <p className="rounded-lg bg-red-50 p-2 text-sm text-red-700">{error}</p>}
           {preview && (
-            <p className="rounded-lg bg-emerald-50 p-2 text-sm text-emerald-900">
-              ✓ “{preview.title}”, week of {fmtDay(preview.week_of)}: {preview.items.length} items in{' '}
-              {new Set(preview.items.map((i) => i.category)).size} sections.
-            </p>
+            <div className="rounded-lg bg-emerald-50 p-2 text-sm text-emerald-900">
+              <p>
+                ✓ “{preview.title}”, week of {fmtDay(preview.week_of)}: {preview.items.length} items in{' '}
+                {new Set(preview.items.map((i) => i.category)).size} sections.
+              </p>
+              <details className="mt-1">
+                <summary className="cursor-pointer text-xs font-semibold">Check the items</summary>
+                <ul className="mt-1 max-h-64 space-y-0.5 overflow-y-auto text-xs">
+                  {preview.items.map((i) => (
+                    <li key={i.id}>
+                      <span className="text-emerald-700">{i.category} ·</span> {i.title}
+                      {i.due && <b> · due {fmtDay(i.due)}</b>}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </div>
           )}
           <div className="flex gap-2">
             <button
