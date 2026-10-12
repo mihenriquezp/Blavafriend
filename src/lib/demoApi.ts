@@ -444,6 +444,34 @@ export function createDemoApi(): Api {
       const { html: _html, ...rest } = t
       return clone(rest)
     },
+    async toolOpen() {
+      return 'demo-session'
+    },
+    async toolHeartbeat() {},
+    async adminToolStats() {
+      // Fictional numbers for the demo.
+      const r = rng(5)
+      const daily = Array.from({ length: 14 }, (_, i) => ({
+        day: new Date(Date.now() - (13 - i) * 86_400_000).toISOString().slice(0, 10),
+        opens: i < 9 ? 0 : Math.round(4 + r() * 18 * (i === 12 ? 2 : 1)),
+      }))
+      return {
+        students: 74,
+        tools: tools().map((t, i) => ({
+          title: t.title,
+          icon: t.icon,
+          live: true,
+          opens: 61 - i * 30,
+          people: 38 - i * 20,
+          returning: 14 - i * 8,
+          engaged: 44 - i * 25,
+          total_seconds: 9840 - i * 6000,
+          median_seconds: 148 - i * 60,
+          last_open: new Date().toISOString(),
+          daily,
+        })),
+      }
+    },
     async deleteTool(id) {
       state.tools = tools().filter((t) => t.id !== id)
       save()

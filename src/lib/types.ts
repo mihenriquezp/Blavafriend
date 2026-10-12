@@ -124,6 +124,28 @@ export interface DayActivity {
   hours: { hour: number; n: number }[]
 }
 
+/** Admin-only: how each useful tool was used (totals; admins' own visits left out). */
+export interface ToolStats {
+  /** Students with a claimed profile, for percentages. */
+  students: number
+  tools: {
+    title: string
+    icon: string
+    /** Still shown on the home page (false once removed). */
+    live: boolean
+    opens: number
+    people: number
+    /** People who opened it more than once. */
+    returning: number
+    /** Visits where the tool saved something (the person actually used it). */
+    engaged: number
+    total_seconds: number
+    median_seconds: number
+    last_open: string
+    daily: { day: string; opens: number }[]
+  }[]
+}
+
 /** A useful tool: an HTML page uploaded by an admin, shown until remove_on. */
 export interface Tool {
   id: string
@@ -215,6 +237,10 @@ export interface Api {
   getToolHtml(id: string): Promise<string>
   saveTool(input: ToolInput, id?: string): Promise<Tool>
   deleteTool(id: string): Promise<void>
+  /** Starts a visit to a tool; returns its id (null if it couldn't be recorded). */
+  toolOpen(id: string): Promise<string | null>
+  toolHeartbeat(sessionId: string, seconds: number, actions: number): Promise<void>
+  adminToolStats(): Promise<ToolStats>
 
   coffeeState(): Promise<CoffeeState>
   coffeeJoin(join: boolean): Promise<CoffeeState>

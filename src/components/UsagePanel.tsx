@@ -2,7 +2,7 @@ import { area, curveMonotoneX, line } from 'd3-shape'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import { addDays, londonToday } from '../lib/coffee'
-import type { DayActivity, UsageData } from '../lib/types'
+import type { DayActivity, ToolStats, UsageData } from '../lib/types'
 import { Card, Spinner } from './ui'
 
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0)
@@ -58,6 +58,13 @@ export function UsagePanel() {
       <h3 className="mt-5 mb-0.5 text-sm font-semibold text-oxford-900">One day, hour by hour</h3>
       <p className="mb-2 text-[11px] text-gray-500">People active in each hour of the chosen day (Oxford time).</p>
       <DayFlow />
+
+      <h3 className="mt-5 mb-0.5 text-sm font-semibold text-oxford-900">🧰 Useful tools</h3>
+      <p className="mb-2 text-[11px] text-gray-500">
+        Time counts only while the tool is on screen. “Used it” = the tool saved something during the visit (e.g. a module
+        picked). Admins’ own visits are left out.
+      </p>
+      <ToolUsage />
 
       <h3 className="mt-5 mb-2 text-sm font-semibold text-oxford-900">Level changes per day</h3>
       <DailyBars days={data.daily} pick={(d) => d.changes} unit="changes" />
@@ -316,6 +323,74 @@ function Row({ label, value }: { label: string; value: number | string }) {
       <span>{label}</span>
       <b className="text-oxford-900 tabular-nums">{value}</b>
     </li>
+  )
+}
+
+const dur = (s: number) => {
+  if (s < 60) return `${s}s`
+  if (s < 3600) return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`
+  return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}m`
+}
+
+function ToolUsage() {
+  const [data, setData] = useState<ToolStats | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    api.adminToolStats().then(setData, (e) => setError(e instanceof Error ? e.message : String(e)))
+  }, [])
+  if (error) return <p className="text-xs text-red-700">{error}</p>
+  if (!data) return <div className="h-28 animate-pulse rounded-lg bg-gray-100" />
+  if (!data.tools.length) return <p className="text-sm text-gray-500">No visits yet.</p>
+  return (
+    <div className="space-y-3">
+      {data.tools.map((t) => {
+        const max = Math.max(1, ...t.daily.map((d) => d.opens))
+        return (
+          <div key={t.title + t.last_open} className="rounded-xl bg-gray-50 p-3">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-xl" aria-hidden>
+                {t.icon}
+              </span>
+              <span className="min-w-0 flex-1 truncate font-semibold text-oxford-900">{t.title}</span>
+              {!t.live && <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] text-gray-600">removed</span>}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <Stat value={t.opens} label="opens" sub={`${t.people ? (t.opens / t.people).toFixed(1) : 0} per person`} />
+              <Stat value={t.people} label="people" sub={`${pct(t.people, data.students)}% of students`} />
+              <Stat value={t.returning} label="came back" sub={`${pct(t.returning, t.people)}% of people`} />
+              <Stat value={dur(t.median_seconds)} label="typical visit" sub="median time" />
+              <Stat value={`${pct(t.engaged, t.opens)}%`} label="used it" sub={`${t.engaged} of ${t.opens} visits`} />
+              <Stat value={dur(t.total_seconds)} label="total time" sub="all visits" />
+            </div>
+            <div className="mt-3 flex h-12 items-end gap-[3px]" role="img" aria-label="Opens per day, last 14 days">
+              {t.daily.map((d) => (
+                <div key={d.day} className="flex h-full flex-1 items-end" title={`${fmtDay(d.day)}: ${d.opens} opens`}>
+                  <div
+                    className="w-full rounded-t bg-[#2a78d6]"
+                    style={{ height: `${Math.max(d.opens ? 6 : 2, (d.opens / max) * 100)}%`, opacity: d.opens ? 1 : 0.25 }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="mt-1 flex justify-between text-[10px] text-gray-400">
+              <span>{fmtDay(t.daily[0].day)}</span>
+              <span>opens per day</span>
+              <span>Today</span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function Stat({ value, label, sub }: { value: number | string; label: string; sub: string }) {
+  return (
+    <div className="rounded-lg bg-white p-2 ring-1 ring-gray-100">
+      <div className="font-display text-lg leading-tight font-bold text-oxford-900">{value}</div>
+      <div className="text-[11px] font-medium text-gray-700">{label}</div>
+      <div className="text-[10px] text-gray-400">{sub}</div>
+    </div>
   )
 }
 

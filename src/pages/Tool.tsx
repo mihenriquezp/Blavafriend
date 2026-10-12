@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import type { Tool } from '../lib/types'
 
 const storageKey = (id: string) => `blavafriend-tool-${id}`
+const HEARTBEAT_S = 15
 const MAX_SAVED = 200_000 // characters kept per tool on this device
 
 function loadSaved(id: string): Record<string, string> {
@@ -37,6 +38,14 @@ export default function ToolPage() {
   const [html, setHtml] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const frame = useRef<HTMLIFrameElement>(null)
+  // Usage (totals only for admins): seconds on screen and how often the tool saved something.
+  type Visit = { session: string | null; seconds: number; actions: number; sent: string }
+  const visit = useRef<Visit>({
+    session: null,
+    seconds: 0,
+    actions: 0,
+    sent: '',
+  })
 
   useEffect(() => {
     let live = true
@@ -59,6 +68,7 @@ export default function ToolPage() {
       if (e.source !== frame.current?.contentWindow) return
       const data = (e.data as { bfToolStorage?: unknown } | null)?.bfToolStorage
       if (!data || typeof data !== 'object') return
+      visit.current.actions += 1
       const text = JSON.stringify(data)
       if (text.length > MAX_SAVED) return
       try {
@@ -70,6 +80,39 @@ export default function ToolPage() {
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
   }, [id])
+
+  // Record the visit once the tool has loaded, and keep its time up to date.
+  const loaded = html !== null
+  useEffect(() => {
+    if (!loaded) return
+    const v: Visit = { session: null, seconds: 0, actions: 0, sent: '' }
+    visit.current = v
+    let stopped = false
+    api.toolOpen(id).then((sid) => {
+      if (!stopped) v.session = sid
+    })
+    const send = () => {
+      const key = `${v.seconds}/${v.actions}`
+      if (!v.session || key === v.sent) return
+      v.sent = key
+      api.toolHeartbeat(v.session, v.seconds, v.actions).catch(() => {})
+    }
+    const tick = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      v.seconds += 1
+      if (v.seconds % HEARTBEAT_S === 0) send()
+    }, 1000)
+    const onHide = () => document.visibilityState === 'hidden' && send()
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('pagehide', send)
+    return () => {
+      stopped = true
+      window.clearInterval(tick)
+      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('pagehide', send)
+      send()
+    }
+  }, [id, loaded])
 
   const srcDoc = useMemo(() => (html === null ? null : withStorageShim(html, loadSaved(id))), [html, id])
 
