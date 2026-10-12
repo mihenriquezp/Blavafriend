@@ -8,6 +8,7 @@ import type {
   CalEvent,
   CoffeeState,
   CustomTag,
+  Newsletter,
   Tool,
   Notice,
   Relationship,
@@ -33,6 +34,8 @@ interface DemoState {
   notices: Notice[]
   /** Added later, so older saved demos may not have it. Rounds hold groups of student ids. */
   tools?: (Tool & { html: string })[]
+  newsletters?: Newsletter[]
+  newsletterChecks?: { newsletter_id: string; item_id: string }[]
   coffee?: { auto: boolean; entries: Record<string, boolean>; rounds: Record<string, string[][]> }
 }
 
@@ -195,6 +198,24 @@ export function createDemoApi(): Api {
   }
 
   const coffee = () => (state.coffee ??= { auto: false, entries: {}, rounds: {} })
+  // A fictional sample newsletter for the demo.
+  const newsletters = () =>
+    (state.newsletters ??= [
+      {
+        id: 'nl-1',
+        title: 'Programme newsletter',
+        week_of: new Date().toISOString().slice(0, 10),
+        intro: 'A fictional weekly newsletter for the demo: a few things to do, a couple of events and some information.',
+        created_at: new Date().toISOString(),
+        items: [
+          { id: 'survey', category: 'To do', title: 'Fill in the welcome survey', summary: 'Five minutes, closes on Wednesday at 17:00.', detail: 'Tell us how the first weeks went. You received a personal link by email.', due: new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10) },
+          { id: 'reading', category: 'To do', title: 'Check the reading lists', summary: 'Economics and Foundations lists are on the course page.', detail: 'Both reading lists are now available on the course page. Start with the first two readings for week 1.', links: [{ label: 'Course page', url: 'https://example.com/course' }] },
+          { id: 'careers', category: 'Register', title: 'Careers kick-off session', summary: 'Monday 15:15, bring one job description.', when: 'Monday, 15:15–16:45 · Lecture Theatre 1', detail: 'An introduction to the careers approach. Please bring one or two job descriptions you are interested in.' },
+          { id: 'talk', category: 'Events', title: 'Panel: who should regulate AI?', summary: 'Tuesday evening, drinks afterwards.', when: 'Tuesday, 17:30–19:00 · Lecture Theatre 1' },
+          { id: 'terms', category: 'For information', title: 'Term dates', summary: 'Autumn, winter and spring term dates for the year.', detail: 'Autumn: 28 Sep – 18 Dec\nWinter: 11 Jan – 19 Mar\nSpring: 19 Apr – 18 Jun' },
+        ],
+      },
+    ])
   // A fictional sample tool so the "Useful tools" row has something to show.
   const tools = () =>
     (state.tools ??= [
@@ -419,6 +440,33 @@ export function createDemoApi(): Api {
     },
     async deleteNotice(id) {
       state.notices = state.notices.filter((n) => n.id !== id)
+      save()
+    },
+
+    async listNewsletters() {
+      return clone(newsletters()).sort((a, b) => b.week_of.localeCompare(a.week_of))
+    },
+    async saveNewsletter(input, id) {
+      let n = id ? newsletters().find((x) => x.id === id) : undefined
+      if (n) Object.assign(n, input)
+      else {
+        n = { ...input, id: crypto.randomUUID(), created_at: new Date().toISOString() }
+        newsletters().push(n)
+      }
+      save()
+      return clone(n)
+    },
+    async deleteNewsletter(id) {
+      state.newsletters = newsletters().filter((n) => n.id !== id)
+      state.newsletterChecks = (state.newsletterChecks ?? []).filter((c) => c.newsletter_id !== id)
+      save()
+    },
+    async listNewsletterChecks() {
+      return clone(state.newsletterChecks ?? [])
+    },
+    async setNewsletterCheck(newsletterId, itemId, checked) {
+      const rest = (state.newsletterChecks ?? []).filter((c) => !(c.newsletter_id === newsletterId && c.item_id === itemId))
+      state.newsletterChecks = checked ? [...rest, { newsletter_id: newsletterId, item_id: itemId }] : rest
       save()
     },
 

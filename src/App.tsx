@@ -11,6 +11,7 @@ import Cohort from './pages/Cohort'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import MyProfile from './pages/MyProfile'
+import NewsletterPage from './pages/Newsletter'
 import People from './pages/People'
 import Person from './pages/Person'
 import Resources from './pages/Resources'
@@ -44,6 +45,8 @@ function Gate() {
         <Route path="resources" element={<Resources />} />
         <Route path="people/:id" element={<Person />} />
         <Route path="tools/:id" element={<ToolPage />} />
+        <Route path="newsletter" element={<NewsletterPage />} />
+        <Route path="newsletter/:id" element={<NewsletterPage />} />
         <Route path="me" element={<MyProfile />} />
         <Route path="admin" element={<Admin />} />
         <Route path="about" element={<About />} />

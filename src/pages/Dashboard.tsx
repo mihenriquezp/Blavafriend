@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { EventsCarousel } from '../components/EventsCarousel'
+import { NewsletterCard } from '../components/NewsletterCard'
 import { ToolsRow } from '../components/ToolsRow'
 import { BreakdownBars, LevelBar, LevelLegend, ProgressChart } from '../components/charts'
 import { Avatar, Card, LevelBadge } from '../components/ui'
@@ -44,6 +45,7 @@ export default function Dashboard() {
         <p className="text-sm text-gray-500">Your private overview of the {total + 1}-strong cohort. Only you see this.</p>
       </div>
 
+      <NewsletterCard />
       <EventsCarousel />
       <ToolsRow />
 

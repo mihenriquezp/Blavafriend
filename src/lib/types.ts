@@ -124,6 +124,31 @@ export interface DayActivity {
   hours: { hour: number; n: number }[]
 }
 
+/** One point of a weekly newsletter, shown as a checklist row (tap for the detail). */
+export interface NewsletterItem {
+  id: string
+  category: string
+  title: string
+  /** One or two lines shown in the list. */
+  summary: string
+  /** Full detail shown in the pop-up (plain text, blank lines between paragraphs). */
+  detail?: string | null
+  /** Deadline (YYYY-MM-DD), for sorting and "due" badges. */
+  due?: string | null
+  /** When and where, as free text (e.g. "Mon 12 Oct, 14:15–15:00 · Lecture Theatre 1"). */
+  when?: string | null
+  links?: { label: string; url: string }[]
+}
+export interface Newsletter {
+  id: string
+  title: string
+  week_of: string
+  intro: string | null
+  items: NewsletterItem[]
+  created_at: string
+}
+export type NewsletterInput = Pick<Newsletter, 'title' | 'week_of' | 'intro' | 'items'>
+
 /** Admin-only: how each useful tool was used (totals; admins' own visits left out). */
 export interface ToolStats {
   /** Students with a claimed profile, for percentages. */
@@ -232,6 +257,13 @@ export interface Api {
   listNotices(): Promise<Notice[]>
   saveNotice(input: NoticeInput, id?: string): Promise<Notice>
   deleteNotice(id: string): Promise<void>
+
+  listNewsletters(): Promise<Newsletter[]>
+  saveNewsletter(input: NewsletterInput, id?: string): Promise<Newsletter>
+  deleteNewsletter(id: string): Promise<void>
+  /** Your own ticks (private). */
+  listNewsletterChecks(): Promise<{ newsletter_id: string; item_id: string }[]>
+  setNewsletterCheck(newsletterId: string, itemId: string, checked: boolean): Promise<void>
 
   listTools(): Promise<Tool[]>
   getToolHtml(id: string): Promise<string>

@@ -5,6 +5,7 @@ import type {
   CalEvent,
   CoffeeState,
   DayActivity,
+  Newsletter,
   CohortData,
   CustomTag,
   Notice,
@@ -165,6 +166,32 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     async deleteNotice(id) {
       check(await sb.from('notices').delete().eq('id', id))
+    },
+
+    async listNewsletters() {
+      return check(await sb.from('newsletters').select('*').order('week_of', { ascending: false })) as Newsletter[]
+    },
+    async saveNewsletter(input, id) {
+      const q = id ? sb.from('newsletters').update(input).eq('id', id) : sb.from('newsletters').insert(input)
+      return check(await q.select().single()) as Newsletter
+    },
+    async deleteNewsletter(id) {
+      check(await sb.from('newsletters').delete().eq('id', id))
+    },
+    async listNewsletterChecks() {
+      return check(await sb.from('newsletter_checks').select('newsletter_id, item_id')) as {
+        newsletter_id: string
+        item_id: string
+      }[]
+    },
+    async setNewsletterCheck(newsletterId, itemId, checked) {
+      if (checked)
+        check(
+          await sb
+            .from('newsletter_checks')
+            .upsert({ newsletter_id: newsletterId, item_id: itemId }, { onConflict: 'newsletter_id,item_id,user_id' }),
+        )
+      else check(await sb.from('newsletter_checks').delete().eq('newsletter_id', newsletterId).eq('item_id', itemId))
     },
 
     async listTools() {

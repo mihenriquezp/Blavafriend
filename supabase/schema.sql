@@ -1234,5 +1234,47 @@ begin
 end;
 $$;
 
+-------------------------------------------------------------------------------
+-- Weekly newsletter as a checklist
+-------------------------------------------------------------------------------
+-- Admins publish each week's newsletter as a list of items (title, short
+-- summary, full detail, optional due date and link). Everyone ticks off their
+-- own items; ticks are private (owner-only), like levels and notes.
+
+create table if not exists public.newsletters (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (char_length(title) between 1 and 120),
+  week_of date not null,
+  intro text check (char_length(intro) <= 2000),
+  -- [{id, category, title, summary, detail, due, link}]
+  items jsonb not null check (jsonb_typeof(items) = 'array' and jsonb_array_length(items) between 1 and 200),
+  created_by uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.newsletter_checks (
+  newsletter_id uuid not null references public.newsletters (id) on delete cascade,
+  item_id text not null check (char_length(item_id) between 1 and 40),
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  checked_at timestamptz not null default now(),
+  primary key (newsletter_id, item_id, user_id)
+);
+
+alter table public.newsletters enable row level security;
+alter table public.newsletter_checks enable row level security;
+
+drop policy if exists "members read newsletters" on public.newsletters;
+create policy "members read newsletters" on public.newsletters
+  for select using (public.is_member());
+
+drop policy if exists "admins manage newsletters" on public.newsletters;
+create policy "admins manage newsletters" on public.newsletters
+  for all using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists "owner manages own newsletter checks" on public.newsletter_checks;
+create policy "owner manages own newsletter checks" on public.newsletter_checks
+  for all using (public.is_member() and user_id = auth.uid())
+  with check (public.is_member() and user_id = auth.uid());
+
 -- Make the API see new or changed functions right away.
 notify pgrst, 'reload schema';
