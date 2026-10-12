@@ -1276,5 +1276,109 @@ create policy "owner manages own newsletter checks" on public.newsletter_checks
   for all using (public.is_member() and user_id = auth.uid())
   with check (public.is_member() and user_id = auth.uid());
 
+-- Who opens the checklist: one row per person per newsletter per day. Read only
+-- as totals through admin_newsletter_stats().
+create table if not exists public.newsletter_views (
+  newsletter_id uuid not null references public.newsletters (id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  day date not null,
+  primary key (newsletter_id, user_id, day)
+);
+
+alter table public.newsletter_views enable row level security;
+-- No policies: written by newsletter_view(), read by admin_newsletter_stats().
+
+create or replace function public.newsletter_view(p_newsletter uuid)
+returns void
+language sql volatile security definer set search_path = public
+as $$
+  insert into public.newsletter_views (newsletter_id, user_id, day)
+  select n.id, auth.uid(), public.london_today()
+  from public.newsletters n
+  where n.id = p_newsletter and public.is_member()
+  on conflict do nothing;
+$$;
+
+-- Totals per newsletter for admins (admins' own activity left out): how many
+-- opened it, how many ticked something, how far those people got, and which
+-- items were ticked most and least.
+create or replace function public.admin_newsletter_stats()
+returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp
+as $$
+declare
+  result jsonb;
+begin
+  if not public.is_admin() then
+    raise exception 'Only admins can see usage stats';
+  end if;
+
+  with
+  admins as (
+    select u.id from auth.users u where lower(u.email) in (select email from public.app_admins)
+  ),
+  nl as (
+    select n.id, n.title, n.week_of, jsonb_array_length(n.items) as total, n.items
+    from public.newsletters n
+    order by n.week_of desc
+    limit 8
+  ),
+  -- Only ticks on items that still exist in the newsletter count.
+  ticks as (
+    select c.newsletter_id, c.user_id, c.item_id
+    from public.newsletter_checks c
+    join nl on nl.id = c.newsletter_id
+    where c.user_id not in (select id from admins)
+      and exists (select 1 from jsonb_array_elements(nl.items) it where it->>'id' = c.item_id)
+  ),
+  per_person as (
+    select t.newsletter_id, t.user_id, count(*)::numeric / nl.total as share
+    from ticks t join nl on nl.id = t.newsletter_id
+    group by t.newsletter_id, t.user_id, nl.total
+  ),
+  views as (
+    select v.newsletter_id, count(distinct v.user_id) as viewers, count(*) as visits
+    from public.newsletter_views v
+    where v.user_id not in (select id from admins)
+    group by v.newsletter_id
+  )
+  select jsonb_build_object(
+    'students', (select count(*) from public.students where role = 'student' and user_id is not null),
+    'newsletters', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', nl.id,
+        'title', nl.title,
+        'week_of', nl.week_of,
+        'items', nl.total,
+        'viewers', coalesce(v.viewers, 0),
+        'visits', coalesce(v.visits, 0),
+        'tickers', (select count(*) from per_person p where p.newsletter_id = nl.id),
+        'avg_share', coalesce((select round(avg(p.share) * 100) from per_person p where p.newsletter_id = nl.id), 0),
+        'median_share', coalesce((
+          select round(percentile_cont(0.5) within group (order by p.share)::numeric * 100)
+          from per_person p where p.newsletter_id = nl.id
+        ), 0),
+        'complete', (select count(*) from per_person p where p.newsletter_id = nl.id and p.share >= 1),
+        'buckets', jsonb_build_array(
+          (select count(*) from per_person p where p.newsletter_id = nl.id and p.share <= 0.25),
+          (select count(*) from per_person p where p.newsletter_id = nl.id and p.share > 0.25 and p.share <= 0.5),
+          (select count(*) from per_person p where p.newsletter_id = nl.id and p.share > 0.5 and p.share <= 0.75),
+          (select count(*) from per_person p where p.newsletter_id = nl.id and p.share > 0.75 and p.share < 1),
+          (select count(*) from per_person p where p.newsletter_id = nl.id and p.share >= 1)
+        ),
+        'item_ticks', (
+          select jsonb_agg(jsonb_build_object('title', it->>'title', 'ticks', (
+            select count(*) from ticks t where t.newsletter_id = nl.id and t.item_id = it->>'id'
+          )) order by ord)
+          from jsonb_array_elements(nl.items) with ordinality as e(it, ord)
+        )
+      ) order by nl.week_of desc)
+      from nl left join views v on v.newsletter_id = nl.id
+    ), '[]'::jsonb)
+  ) into result;
+  return result;
+end;
+$$;
+
 -- Make the API see new or changed functions right away.
 notify pgrst, 'reload schema';

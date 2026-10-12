@@ -33,7 +33,10 @@ export default function About() {
             hosting account could technically open the raw database; the admin commits never to do that.)
           </li>
           <li>Nobody is ever told how you rated them.</li>
-          <li>What you tick off in the weekly newsletter checklist is private too: only you see it.</li>
+          <li>
+            What you tick off in the weekly newsletter checklist is private too: only you see it. The admin only sees
+            totals, such as how many people opened the checklist and how far people got on average.
+          </li>
         </ul>
         <h2 className="pt-2 font-semibold text-oxford-900">Counted anonymously in “Cohort”</h2>
         <ul className="list-disc space-y-1 pl-5">

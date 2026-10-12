@@ -2,7 +2,7 @@ import { area, curveMonotoneX, line } from 'd3-shape'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import { addDays, londonToday } from '../lib/coffee'
-import type { DayActivity, ToolStats, UsageData } from '../lib/types'
+import type { DayActivity, NewsletterStats, ToolStats, UsageData } from '../lib/types'
 import { Card, Spinner } from './ui'
 
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0)
@@ -65,6 +65,13 @@ export function UsagePanel() {
         picked). Admins’ own visits are left out.
       </p>
       <ToolUsage />
+
+      <h3 className="mt-5 mb-0.5 text-sm font-semibold text-oxford-900">📰 Newsletter checklists</h3>
+      <p className="mb-2 text-[11px] text-gray-500">
+        “Opened” counts people who opened the checklist (from when this was added). Progress is among people who ticked at
+        least one item. Admins are left out.
+      </p>
+      <NewsletterUsage />
 
       <h3 className="mt-5 mb-2 text-sm font-semibold text-oxford-900">Level changes per day</h3>
       <DailyBars days={data.daily} pick={(d) => d.changes} unit="changes" />
@@ -381,6 +388,94 @@ function ToolUsage() {
         )
       })}
     </div>
+  )
+}
+
+const BUCKETS = ['1–25%', '26–50%', '51–75%', '76–99%', '100%']
+
+function NewsletterUsage() {
+  const [data, setData] = useState<NewsletterStats | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    api.adminNewsletterStats().then(setData, (e) => setError(e instanceof Error ? e.message : String(e)))
+  }, [])
+  if (error) return <p className="text-xs text-red-700">{error}</p>
+  if (!data) return <div className="h-28 animate-pulse rounded-lg bg-gray-100" />
+  if (!data.newsletters.length) return <p className="text-sm text-gray-500">No newsletters yet.</p>
+  return (
+    <div className="space-y-3">
+      {data.newsletters.map((n, idx) => {
+        const maxBucket = Math.max(1, ...n.buckets)
+        const ranked = [...n.item_ticks].sort((a, b) => b.ticks - a.ticks)
+        const maxTicks = Math.max(1, ranked[0]?.ticks ?? 0)
+        return (
+          <details key={n.id} open={idx === 0} className="rounded-xl bg-gray-50 p-3">
+            <summary className="cursor-pointer">
+              <span className="font-semibold text-oxford-900">Week of {fmtDay(n.week_of)}</span>
+              <span className="text-xs text-gray-500">
+                {' '}
+                · {n.items} items · {n.tickers} ticking, avg {n.avg_share}%
+              </span>
+            </summary>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <Stat value={n.viewers} label="opened it" sub={`${pct(n.viewers, data.students)}% of students`} />
+              <Stat value={n.tickers} label="ticked ≥1" sub={`${pct(n.tickers, data.students)}% of students`} />
+              <Stat value={`${n.avg_share}%`} label="avg. done" sub={`median ${n.median_share}%`} />
+              <Stat value={n.complete} label="did it all" sub={`${pct(n.complete, n.tickers)}% of those ticking`} />
+              <Stat
+                value={n.viewers ? (n.visits / n.viewers).toFixed(1) : '0'}
+                label="days opened"
+                sub="per person, on average"
+              />
+              <Stat value={`${pct(n.tickers, n.viewers)}%`} label="ticked after opening" sub="of those who opened it" />
+            </div>
+
+            <div className="mt-3 text-[11px] font-semibold text-gray-600">How far people got (share of items ticked)</div>
+            <div className="mt-1 space-y-1">
+              {n.buckets.map((count, i) => (
+                <div key={BUCKETS[i]} className="flex items-center gap-2 text-xs">
+                  <span className="w-14 shrink-0 text-gray-500">{BUCKETS[i]}</span>
+                  <div className="h-3 flex-1 rounded bg-white">
+                    <div
+                      className="h-3 rounded bg-[#2a78d6]"
+                      style={{ width: `${(count / maxBucket) * 100}%`, opacity: count ? 1 : 0 }}
+                    />
+                  </div>
+                  <span className="w-6 text-right font-semibold text-oxford-900 tabular-nums">{count}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 text-[11px] font-semibold text-gray-600">Most ticked</div>
+            <ItemBars items={ranked.slice(0, 5)} max={maxTicks} />
+            {ranked.length > 5 && (
+              <>
+                <div className="mt-2 text-[11px] font-semibold text-gray-600">Least ticked</div>
+                <ItemBars items={ranked.slice(-3).reverse()} max={maxTicks} />
+              </>
+            )}
+          </details>
+        )
+      })}
+    </div>
+  )
+}
+
+function ItemBars({ items, max }: { items: { title: string; ticks: number }[]; max: number }) {
+  return (
+    <ul className="mt-1 space-y-1">
+      {items.map((it, i) => (
+        <li key={it.title + i} className="text-xs">
+          <div className="flex justify-between gap-2">
+            <span className="truncate text-gray-700">{it.title}</span>
+            <span className="shrink-0 font-semibold text-oxford-900 tabular-nums">{it.ticks}</span>
+          </div>
+          <div className="mt-0.5 h-1.5 rounded bg-white">
+            <div className="h-1.5 rounded bg-emerald-500" style={{ width: `${(it.ticks / max) * 100}%` }} />
+          </div>
+        </li>
+      ))}
+    </ul>
   )
 }
 

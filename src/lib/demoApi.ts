@@ -470,6 +470,28 @@ export function createDemoApi(): Api {
       save()
     },
 
+    async newsletterView() {},
+    async adminNewsletterStats() {
+      // Fictional numbers for the demo.
+      return {
+        students: 74,
+        newsletters: newsletters().map((n) => ({
+          id: n.id,
+          title: n.title,
+          week_of: n.week_of,
+          items: n.items.length,
+          viewers: 48,
+          visits: 91,
+          tickers: 33,
+          avg_share: 46,
+          median_share: 40,
+          complete: 5,
+          buckets: [9, 10, 6, 3, 5],
+          item_ticks: n.items.map((it, i) => ({ title: it.title, ticks: Math.max(0, 29 - i * 3 - (i % 3) * 4) })),
+        })),
+      }
+    },
+
     async listTools() {
       const today = new Date().toISOString().slice(0, 10)
       return tools()
