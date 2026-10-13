@@ -1,90 +1,124 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { api } from '../lib/api'
-import { isBirthday } from '../lib/birthdays'
-import { coffeeWeek, fmtDay, londonToday } from '../lib/coffee'
-import { callName } from '../lib/names'
-import { useStore } from '../lib/store'
-import { InstallGuide, isInstalled } from './InstallGuide'
-import { Avatar, CountryLabel, btnPrimary } from './ui'
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { api } from "../lib/api";
+import { isBirthday } from "../lib/birthdays";
+import { coffeeWeek, fmtDay, londonToday } from "../lib/coffee";
+import { callName } from "../lib/names";
+import { useStore } from "../lib/store";
+import { InstallGuide, isInstalled } from "./InstallGuide";
+import {
+  MentorsHowTo,
+  NewsletterHowTo,
+  WHATS_NEW_KEY,
+  WHATS_NEW_UNTIL,
+} from "./WhatsNew";
+import { Avatar, CountryLabel, btnPrimary } from "./ui";
 
 const todayKey = () => {
-  const d = new Date()
-  return `blavafriend-birthdays-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
-}
-const coffeeKey = (round: string) => `blavafriend-coffee-${round}`
+  const d = new Date();
+  return `blavafriend-birthdays-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+};
+const coffeeKey = (round: string) => `blavafriend-coffee-${round}`;
 // One-off announcement: how to add the app to your phone, for everyone who
 // opens it on this day (Oxford time) in the browser.
-const INSTALL_DAY = '2026-10-04'
-const installKey = `blavafriend-install-${INSTALL_DAY}`
+const INSTALL_DAY = "2026-10-04";
+const installKey = `blavafriend-install-${INSTALL_DAY}`;
 
 const seen = (key: string) => {
   try {
-    return !!localStorage.getItem(key)
+    return !!localStorage.getItem(key);
   } catch {
-    return false // private mode: show it anyway
+    return false; // private mode: show it anyway
   }
-}
+};
 
 /**
  * Once a day (per device), a pop-up with everyone whose birthday is today; once a
- * week, your new coffee match. Both show in the same pop-up.
+ * week, your new coffee match. Both show in the same pop-up, followed by any
+ * one-off screens (install guide, how-tos).
  */
 export function BirthdayPopup() {
-  const { students, me } = useStore()
+  const { students, me } = useStore();
   const people = useMemo(() => {
-    const list = students.filter((s) => isBirthday(s))
+    const list = students.filter((s) => isBirthday(s));
     // Put yourself first if it's your birthday.
-    return list.sort((a, b) => (a.id === me?.id ? -1 : b.id === me?.id ? 1 : a.full_name.localeCompare(b.full_name)))
-  }, [students, me])
-  const [match, setMatch] = useState<{ round: string; partners: string[] } | null>(null)
-  const [dismissed, setDismissed] = useState(false)
-  const myId = me?.id
+    return list.sort((a, b) =>
+      a.id === me?.id
+        ? -1
+        : b.id === me?.id
+          ? 1
+          : a.full_name.localeCompare(b.full_name),
+    );
+  }, [students, me]);
+  const [match, setMatch] = useState<{
+    round: string;
+    partners: string[];
+  } | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+  const myId = me?.id;
 
   // Once per session: is there a coffee match for this week you haven't seen yet?
   useEffect(() => {
-    if (!myId) return
-    let live = true
+    if (!myId) return;
+    let live = true;
     api.coffeeState().then(
       (st) => {
-        const m = st.matches.find((x) => x.round === st.latest_round)
-        if (live && m && m.partners.length && !seen(coffeeKey(m.round))) setMatch(m)
+        const m = st.matches.find((x) => x.round === st.latest_round);
+        if (live && m && m.partners.length && !seen(coffeeKey(m.round)))
+          setMatch(m);
       },
       () => {},
-    )
+    );
     return () => {
-      live = false
-    }
-  }, [myId])
+      live = false;
+    };
+  }, [myId]);
 
   const coffee = useMemo(() => {
-    const partners = (match?.partners ?? []).flatMap((id) => students.filter((s) => s.id === id))
-    return match && partners.length ? { round: match.round, partners } : null
-  }, [match, students])
+    const partners = (match?.partners ?? []).flatMap((id) =>
+      students.filter((s) => s.id === id),
+    );
+    return match && partners.length ? { round: match.round, partners } : null;
+  }, [match, students]);
 
-  const showBirthdays = people.length > 0 && !seen(todayKey())
-  const [showInstall] = useState(() => londonToday() === INSTALL_DAY && !isInstalled() && !seen(installKey))
-  const open = !dismissed && (showBirthdays || !!coffee || showInstall)
-  // Birthdays and coffee first; the install guide gets its own screen after them.
-  const [page, setPage] = useState<'news' | 'install'>('news')
-  const installPage = showInstall && (page === 'install' || !(showBirthdays || coffee))
+  const showBirthdays = people.length > 0 && !seen(todayKey());
+  const [showInstall] = useState(
+    () => londonToday() === INSTALL_DAY && !isInstalled() && !seen(installKey),
+  );
+  const [showNew] = useState(
+    () => londonToday() <= WHATS_NEW_UNTIL && !seen(WHATS_NEW_KEY),
+  );
+  // Birthdays and coffee first; the install guide and the how-tos each get their own screen after them.
+  const pages = [
+    ...(showBirthdays || coffee ? (["news"] as const) : []),
+    ...(showInstall ? (["install"] as const) : []),
+    ...(showNew ? (["mentors", "newsletter"] as const) : []),
+  ];
+  const [idx, setIdx] = useState(0);
+  const page = pages[Math.min(idx, pages.length - 1)];
+  const last = idx >= pages.length - 1;
+  const open = !dismissed && pages.length > 0;
 
   const close = () => {
     try {
-      if (people.length) localStorage.setItem(todayKey(), '1')
-      if (coffee) localStorage.setItem(coffeeKey(coffee.round), '1')
-      if (showInstall) localStorage.setItem(installKey, '1')
+      if (people.length) localStorage.setItem(todayKey(), "1");
+      if (coffee) localStorage.setItem(coffeeKey(coffee.round), "1");
+      if (showInstall) localStorage.setItem(installKey, "1");
+      if (showNew) localStorage.setItem(WHATS_NEW_KEY, "1");
     } catch {
       /* ignore */
     }
-    setDismissed(true)
-  }
+    setDismissed(true);
+  };
 
-  if (!open) return null
-  const others = people.filter((s) => s.id !== me?.id)
+  if (!open) return null;
+  const others = people.filter((s) => s.id !== me?.id);
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-oxford-900/60 p-4 backdrop-blur-sm" onClick={close}>
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-oxford-900/60 p-4 backdrop-blur-sm"
+      onClick={close}
+    >
       <div
         role="dialog"
         aria-modal="true"
@@ -92,19 +126,22 @@ export function BirthdayPopup() {
         className="max-h-[85dvh] w-full max-w-sm overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {!installPage && showBirthdays && (
+        {page === "news" && showBirthdays && (
           <>
             <div className="text-center">
               <div className="text-5xl" aria-hidden>
                 🎂
               </div>
-              <h2 id="bday-title" className="mt-2 font-display text-2xl font-bold text-oxford-900">
-                {others.length ? 'Birthday today!' : 'Happy birthday!'}
+              <h2
+                id="bday-title"
+                className="mt-2 font-display text-2xl font-bold text-oxford-900"
+              >
+                {others.length ? "Birthday today!" : "Happy birthday!"}
               </h2>
               <p className="mt-1 text-sm text-gray-500">
                 {others.length
-                  ? `Don’t forget to wish ${others.length === 1 ? 'them' : 'them all'} a happy birthday 🎉`
-                  : 'The whole cohort is celebrating you today 🎉'}
+                  ? `Don’t forget to wish ${others.length === 1 ? "them" : "them all"} a happy birthday 🎉`
+                  : "The whole cohort is celebrating you today 🎉"}
               </p>
             </div>
 
@@ -117,12 +154,16 @@ export function BirthdayPopup() {
                   <Avatar name={s.full_name} url={s.photo_url} size={64} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-semibold text-oxford-900">
-                      {s.id === me?.id ? 'You! 🥳' : callName(s)}
+                      {s.id === me?.id ? "You! 🥳" : callName(s)}
                     </div>
-                    <div className="truncate text-xs text-gray-500">{s.full_name}</div>
                     <div className="truncate text-xs text-gray-500">
-                      {s.country_origin && <CountryLabel country={s.country_origin} />}
-                      {s.country_origin && s.college && ' · '}
+                      {s.full_name}
+                    </div>
+                    <div className="truncate text-xs text-gray-500">
+                      {s.country_origin && (
+                        <CountryLabel country={s.country_origin} />
+                      )}
+                      {s.country_origin && s.college && " · "}
                       {s.college}
                     </div>
                   </div>
@@ -141,22 +182,34 @@ export function BirthdayPopup() {
           </>
         )}
 
-        {!installPage && coffee && (
-          <div className={showBirthdays ? 'mt-5 border-t border-gray-100 pt-5' : ''}>
+        {page === "news" && coffee && (
+          <div
+            className={
+              showBirthdays ? "mt-5 border-t border-gray-100 pt-5" : ""
+            }
+          >
             <div className="text-center">
               <div className="text-5xl" aria-hidden>
                 ☕
               </div>
               <h2
-                id={showBirthdays ? undefined : 'bday-title'}
+                id={showBirthdays ? undefined : "bday-title"}
                 className="mt-2 font-display text-2xl font-bold text-oxford-900"
               >
                 Your coffee match!
               </h2>
               <p className="mt-1 text-sm text-gray-500">
-                For the week of{' '}
-                {fmtDay(coffeeWeek(coffee.round).from, { weekday: 'short', day: 'numeric', month: 'short' })}. Send{' '}
-                {coffee.partners.length > 1 ? 'them' : callName(coffee.partners[0])} a message and find a time.
+                For the week of{" "}
+                {fmtDay(coffeeWeek(coffee.round).from, {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                })}
+                . Send{" "}
+                {coffee.partners.length > 1
+                  ? "them"
+                  : callName(coffee.partners[0])}{" "}
+                a message and find a time.
               </p>
             </div>
             <ul className="mt-4 space-y-3">
@@ -167,8 +220,12 @@ export function BirthdayPopup() {
                 >
                   <Avatar name={s.full_name} url={s.photo_url} size={56} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-semibold text-oxford-900">{callName(s)}</div>
-                    <div className="truncate text-xs text-gray-500">{s.full_name}</div>
+                    <div className="truncate font-semibold text-oxford-900">
+                      {callName(s)}
+                    </div>
+                    <div className="truncate text-xs text-gray-500">
+                      {s.full_name}
+                    </div>
                   </div>
                   <Link
                     to={`/people/${s.id}`}
@@ -183,33 +240,63 @@ export function BirthdayPopup() {
           </div>
         )}
 
-        {installPage && (
+        {page === "install" && (
           <div>
             <div className="mb-4 text-center">
               <div className="text-5xl" aria-hidden>
                 📲
               </div>
-              <h2 id="bday-title" className="mt-2 font-display text-2xl font-bold text-oxford-900">
+              <h2
+                id="bday-title"
+                className="mt-2 font-display text-2xl font-bold text-oxford-900"
+              >
                 Add Blavafriend to your phone
               </h2>
               <p className="mt-1 text-sm text-gray-500">
-                It opens full screen like a normal app, one tap from your home screen. Takes 20 seconds.
+                It opens full screen like a normal app, one tap from your home
+                screen. Takes 20 seconds.
               </p>
             </div>
             <InstallGuide />
           </div>
         )}
 
-        {showInstall && !installPage ? (
-          <button className={`${btnPrimary} mt-5 w-full`} onClick={() => setPage('install')} autoFocus>
+        {page === "mentors" && <MentorsHowTo />}
+        {page === "newsletter" && <NewsletterHowTo />}
+
+        {pages.length > 1 && (
+          <div className="mt-4 flex justify-center gap-1.5" aria-hidden>
+            {pages.map((p, i) => (
+              <span
+                key={p}
+                className={`h-1.5 rounded-full transition-all ${i === idx ? "w-5 bg-oxford-900" : "w-1.5 bg-gray-300"}`}
+              />
+            ))}
+          </div>
+        )}
+        {!last ? (
+          <button
+            key={idx}
+            className={`${btnPrimary} mt-4 w-full`}
+            onClick={() => setIdx(idx + 1)}
+            autoFocus
+          >
             Next →
           </button>
         ) : (
-          <button className={`${btnPrimary} mt-5 w-full`} onClick={close} autoFocus>
-            {installPage ? '👍 Got it' : showBirthdays ? '🎉 Got it' : '☕ Got it'}
+          <button
+            className={`${btnPrimary} mt-4 w-full`}
+            onClick={close}
+            autoFocus
+          >
+            {page === "news"
+              ? showBirthdays
+                ? "🎉 Got it"
+                : "☕ Got it"
+              : "👍 Got it"}
           </button>
         )}
       </div>
     </div>
-  )
+  );
 }
