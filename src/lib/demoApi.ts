@@ -225,6 +225,7 @@ export function createDemoApi(): Api {
         description: 'Split a restaurant bill between friends, tip included.',
         icon: '🧮',
         remove_on: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
+        hidden: false,
         created_at: new Date().toISOString(),
         html: DEMO_TOOL_HTML,
       },
@@ -493,10 +494,8 @@ export function createDemoApi(): Api {
     },
 
     async listTools() {
-      const today = new Date().toISOString().slice(0, 10)
-      return tools()
-        .filter((t) => !t.remove_on || t.remove_on > today)
-        .map(({ html: _html, ...t }) => clone(t))
+      // The demo user is an admin, who sees every tool (the home row filters).
+      return tools().map(({ html: _html, ...t }) => clone({ ...t, hidden: !!t.hidden }))
     },
     async getToolHtml(id) {
       const t = tools().find((x) => x.id === id)
@@ -507,7 +506,17 @@ export function createDemoApi(): Api {
       let t = id ? tools().find((x) => x.id === id) : undefined
       if (t) Object.assign(t, input)
       else {
-        t = { html: '', ...input, id: crypto.randomUUID(), created_at: new Date().toISOString() }
+        t = {
+          html: '',
+          title: '',
+          description: null,
+          icon: '🧰',
+          remove_on: null,
+          hidden: false,
+          ...input,
+          id: crypto.randomUUID(),
+          created_at: new Date().toISOString(),
+        }
         tools().unshift(t)
       }
       save()

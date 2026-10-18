@@ -22,6 +22,7 @@ import type {
 } from './types'
 
 const REL_COLUMNS = 'student_id, level, starred, note, updated_at'
+const TOOL_COLS = 'id, title, description, icon, remove_on, hidden, created_at'
 
 function toSessionUser(u: User | null | undefined): SessionUser | null {
   return u ? { id: u.id, email: u.email ?? '' } : null
@@ -136,7 +137,9 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       const uid = data.session?.user.id
       if (!uid) throw new Error('Not signed in')
       const path = `${uid}/${crypto.randomUUID()}.jpg`
-      const { error } = await sb.storage.from('event-photos').upload(path, file, { contentType: 'image/jpeg', upsert: false })
+      const { error } = await sb.storage
+        .from('event-photos')
+        .upload(path, file, { contentType: 'image/jpeg', upsert: false })
       if (error) throw new Error(error.message)
       return sb.storage.from('event-photos').getPublicUrl(path).data.publicUrl
     },
@@ -147,7 +150,10 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       const { data } = await sb.auth.getSession()
       const user_id = data.session?.user.id
       if (status === null) check(await sb.from('cal_rsvps').delete().eq('event_id', eventId).eq('user_id', user_id!))
-      else check(await sb.from('cal_rsvps').upsert({ event_id: eventId, user_id, status }, { onConflict: 'event_id,user_id' }))
+      else
+        check(
+          await sb.from('cal_rsvps').upsert({ event_id: eventId, user_id, status }, { onConflict: 'event_id,user_id' }),
+        )
     },
     async listSongs() {
       return check(await sb.from('songs').select('*').order('created_at', { ascending: false })) as Song[]
@@ -203,18 +209,18 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
 
     async listTools() {
-      await sb.rpc('purge_expired_tools') // tidy up; harmless if it fails
-      return check(
-        await sb.from('tools').select('id, title, description, icon, remove_on, created_at').order('created_at', { ascending: false }),
-      ) as Tool[]
+      const list = (cols: string) => sb.from('tools').select(cols).order('created_at', { ascending: false })
+      let res = await list(TOOL_COLS)
+      // Before the database has the hidden column, keep showing the tools.
+      if (res.error?.code === '42703') res = await list(TOOL_COLS.replace(', hidden', ''))
+      return (check(res) as unknown as Tool[]).map((t) => ({ ...t, hidden: !!t.hidden }))
     },
     async getToolHtml(id) {
       return (check(await sb.from('tools').select('html').eq('id', id).single()) as { html: string }).html
     },
     async saveTool(input, id) {
-      const cols = 'id, title, description, icon, remove_on, created_at'
       const q = id ? sb.from('tools').update(input).eq('id', id) : sb.from('tools').insert(input)
-      return check(await q.select(cols).single()) as Tool
+      return check(await q.select(TOOL_COLS).single()) as unknown as Tool
     },
     async deleteTool(id) {
       check(await sb.from('tools').delete().eq('id', id))
@@ -269,9 +275,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
 
     async adminUnclaimStudent(id) {
-      return check(
-        await sb.from('students').update({ user_id: null }).eq('id', id).select().single(),
-      ) as Student
+      return check(await sb.from('students').update({ user_id: null }).eq('id', id).select().single()) as Student
     },
   }
 }

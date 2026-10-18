@@ -359,7 +359,7 @@ function ToolUsage() {
                 {t.icon}
               </span>
               <span className="min-w-0 flex-1 truncate font-semibold text-oxford-900">{t.title}</span>
-              {!t.live && <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] text-gray-600">removed</span>}
+              {!t.live && <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] text-gray-600">not shown</span>}
             </div>
             <div className="grid grid-cols-3 gap-2">
               <Stat value={t.opens} label="opens" sub={`${t.people ? (t.opens / t.people).toFixed(1) : 0} per person`} />

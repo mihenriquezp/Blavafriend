@@ -3,12 +3,17 @@ import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { londonToday, addDays, fmtDay } from '../lib/coffee'
 import type { Tool } from '../lib/types'
+import { toolShown } from './ToolsRow'
 import { Card, Field, btnPrimary, btnSecondary, inputCls } from './ui'
 
 const MAX_BYTES = 2_500_000
 const ICONS = ['🧰', '📚', '🗓️', '🧮', '🗺️', '📝', '🎓', '🔗']
 
-/** Admin: upload HTML pages as "Useful tools" with a title, description, icon and removal date. */
+/**
+ * Admin: upload HTML pages as "Useful tools" with a title, description, icon and hide date.
+ * Hiding (by hand or by date) keeps the tool and its id, so people's saved data still matches
+ * if it is shown again; only Delete removes it.
+ */
 export function ToolsAdmin() {
   const [tools, setTools] = useState<Tool[] | null>(null)
   const [editing, setEditing] = useState<Tool | 'new' | null>(null)
@@ -24,7 +29,9 @@ export function ToolsAdmin() {
       <div className="mb-3 flex items-center justify-between gap-2">
         <div>
           <h2 className="font-semibold text-oxford-900">🧰 Useful tools</h2>
-          <p className="text-xs text-gray-500">HTML pages shown on everyone’s home page until their removal date.</p>
+          <p className="text-xs text-gray-500">
+            HTML pages on everyone’s home page. Hide one to take it down without losing anyone’s saved data.
+          </p>
         </div>
         {!editing && (
           <button className={btnPrimary} onClick={() => setEditing('new')}>
@@ -47,7 +54,7 @@ export function ToolsAdmin() {
       {tools && tools.length > 0 && (
         <ul className="mt-2 divide-y divide-gray-100">
           {tools.map((t) => (
-            <li key={t.id} className="flex items-center gap-3 py-2">
+            <li key={t.id} className={`flex items-center gap-3 py-2 ${toolShown(t) ? '' : 'opacity-60'}`}>
               <span className="text-2xl" aria-hidden>
                 {t.icon}
               </span>
@@ -55,19 +62,38 @@ export function ToolsAdmin() {
                 <Link to={`/tools/${t.id}`} className="block truncate font-medium text-oxford-900 hover:underline">
                   {t.title}
                 </Link>
-                <div className="text-xs text-gray-500">
-                  {t.remove_on
-                    ? `Disappears on ${fmtDay(t.remove_on, { day: 'numeric', month: 'short', year: 'numeric' })}`
-                    : 'No end date'}
-                </div>
+                <div className="text-xs text-gray-500">{status(t)}</div>
               </div>
               <button className="text-sm text-oxford-500 underline" onClick={() => setEditing(t)}>
                 Edit
               </button>
               <button
+                className="text-sm text-oxford-500 underline"
+                onClick={async () => {
+                  try {
+                    // Showing a tool that is past its date also clears the date.
+                    const expired = !!t.remove_on && t.remove_on <= londonToday()
+                    await api.saveTool(
+                      toolShown(t) ? { hidden: true } : { hidden: false, ...(expired ? { remove_on: null } : {}) },
+                      t.id,
+                    )
+                    load()
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : String(e))
+                  }
+                }}
+              >
+                {toolShown(t) ? 'Hide' : 'Show'}
+              </button>
+              <button
                 className="text-sm text-red-700 underline"
                 onClick={async () => {
-                  if (!confirm(`Delete “${t.title}”?`)) return
+                  if (
+                    !confirm(
+                      `Delete “${t.title}” for good?\n\nIf it comes back later it will be a new tool and people’s saved data in it (stars, notes…) won’t carry over. To just take it down, use Hide.`,
+                    )
+                  )
+                    return
                   try {
                     await api.deleteTool(t.id)
                     load()
@@ -84,6 +110,14 @@ export function ToolsAdmin() {
       )}
     </Card>
   )
+}
+
+const fmtDate = (d: string) => fmtDay(d, { day: 'numeric', month: 'short', year: 'numeric' })
+
+function status(t: Tool) {
+  if (t.hidden) return '🙈 Hidden'
+  if (t.remove_on && t.remove_on <= londonToday()) return `🙈 Hidden since ${fmtDate(t.remove_on)}`
+  return t.remove_on ? `Shown until ${fmtDate(addDays(t.remove_on, -1))}` : 'Shown · no end date'
 }
 
 function ToolForm({ initial, onCancel, onSaved }: { initial: Tool | null; onCancel: () => void; onSaved: () => void }) {
@@ -108,7 +142,8 @@ function ToolForm({ initial, onCancel, onSaved }: { initial: Tool | null; onCanc
 
   const save = async () => {
     if (!initial && !file) return setError('Choose an HTML file.')
-    if (removeOn && removeOn < tomorrow) return setError('The removal date must be tomorrow or later.')
+    if (removeOn && removeOn !== initial?.remove_on && removeOn < tomorrow)
+      return setError('The hide date must be tomorrow or later.')
     setBusy(true)
     setError(null)
     try {
@@ -177,7 +212,10 @@ function ToolForm({ initial, onCancel, onSaved }: { initial: Tool | null; onCanc
           />
         </div>
       </Field>
-      <Field label="Remove on" hint="From this day it disappears for everyone and is deleted. Leave empty to keep it.">
+      <Field
+        label="Hide on"
+        hint="From this day it is hidden for everyone. Nothing is deleted. Leave empty to keep it up."
+      >
         <input
           type="date"
           value={removeOn}

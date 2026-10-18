@@ -1088,7 +1088,7 @@ end;
 $$;
 
 -------------------------------------------------------------------------------
--- Useful tools (HTML pages uploaded by admins, shown until their removal date)
+-- Useful tools (HTML pages uploaded by admins, shown until their hide date)
 -------------------------------------------------------------------------------
 -- The app shows each page inside a sandboxed iframe with no access to the
 -- app's origin, so a tool can't read anyone's session or data.
@@ -1099,28 +1099,34 @@ create table if not exists public.tools (
   description text check (char_length(description) <= 300),
   icon text not null default '🧰' check (char_length(icon) between 1 and 8),
   html text not null check (octet_length(html) <= 3000000),
-  -- First day it is no longer shown (and is deleted). Null = keep.
+  -- First day it is no longer shown (it is hidden, never deleted). Null = no end date.
   remove_on date,
   created_by uuid not null default auth.uid() references auth.users (id) on delete cascade,
   created_at timestamptz not null default now()
 );
 
+-- Hidden by an admin: kept (same id, so people's saved data still matches) but not shown.
+alter table public.tools add column if not exists hidden boolean not null default false;
+
 alter table public.tools enable row level security;
 
 drop policy if exists "members read current tools" on public.tools;
 create policy "members read current tools" on public.tools
-  for select using (public.is_member() and (remove_on is null or remove_on > public.london_today()));
+  for select using (
+    public.is_member() and not hidden and (remove_on is null or remove_on > public.london_today())
+  );
 
 drop policy if exists "admins manage tools" on public.tools;
 create policy "admins manage tools" on public.tools
   for all using (public.is_admin()) with check (public.is_admin());
 
--- Deletes tools whose removal date has come (called when the list loads).
+-- Used to delete tools whose date had come. Tools past their date are now only
+-- hidden, so this does nothing; kept so an app still calling it doesn't error.
 create or replace function public.purge_expired_tools()
 returns void
 language sql volatile security definer set search_path = public
 as $$
-  delete from public.tools where remove_on <= public.london_today();
+  select;
 $$;
 
 -- How tools are used: one row per visit (opened, seconds on screen, and how many
@@ -1152,7 +1158,7 @@ begin
   end if;
   insert into public.tool_sessions (tool_id, tool_title, user_id)
   select t.id, t.title, auth.uid() from public.tools t
-  where t.id = p_tool and (t.remove_on is null or t.remove_on > public.london_today())
+  where t.id = p_tool and not t.hidden and (t.remove_on is null or t.remove_on > public.london_today())
   returning id into sid;
   return sid;
 end;
@@ -1194,7 +1200,7 @@ begin
   tools as (
     select coalesce(s.tool_id::text, s.tool_title) as k,
            max(s.tool_title) as title,
-           bool_or(t.id is not null) as live,
+           bool_or(t.id is not null and not t.hidden and (t.remove_on is null or t.remove_on > public.london_today())) as live,
            max(t.icon) as icon,
            count(*) as opens,
            count(distinct s.user_id) as people,
