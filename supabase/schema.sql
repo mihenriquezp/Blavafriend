@@ -1129,6 +1129,25 @@ as $$
   select;
 $$;
 
+-- What each person saved inside a tool (stars, notes…), backed up to their
+-- account so it follows them to another device or address. Only the owner can
+-- read or write their own rows; admins see nothing.
+create table if not exists public.tool_data (
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  tool_id uuid not null references public.tools (id) on delete cascade,
+  data jsonb not null check (octet_length(data::text) <= 250000),
+  -- When the person saved it (their device's clock): the newest copy wins.
+  saved_at timestamptz not null,
+  primary key (user_id, tool_id)
+);
+
+alter table public.tool_data enable row level security;
+
+drop policy if exists "own tool data" on public.tool_data;
+create policy "own tool data" on public.tool_data
+  for all using (user_id = auth.uid() and public.is_member())
+  with check (user_id = auth.uid() and public.is_member());
+
 -- How tools are used: one row per visit (opened, seconds on screen, and how many
 -- times the tool saved something, a sign the person actually used it).
 -- Kept after a tool is removed (tool_id becomes null, the title stays).

@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useStore } from '../lib/store'
+import { backupToolData } from '../lib/toolData'
 import { BirthdayPopup } from './BirthdayPopup'
 import { Avatar } from './ui'
 
@@ -14,6 +16,11 @@ const NAV = [
 
 export function Layout() {
   const { me, isAdmin, notice } = useStore()
+  // Back up what was saved inside tools on this device, once signed in.
+  const myId = me?.id
+  useEffect(() => {
+    if (myId) backupToolData().catch(() => {})
+  }, [myId])
   return (
     <div className="min-h-dvh pb-20 sm:pb-0">
       <header className="sticky top-0 z-20 border-b border-oxford-700 bg-oxford-900 text-white">

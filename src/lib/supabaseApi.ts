@@ -232,6 +232,22 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     async toolHeartbeat(sessionId, seconds, actions) {
       await sb.rpc('tool_heartbeat', { p_session: sessionId, p_seconds: seconds, p_actions: actions })
     },
+    async listMyToolData() {
+      return check(await sb.from('tool_data').select('tool_id, saved_at')) as { tool_id: string; saved_at: string }[]
+    },
+    async getMyToolData(toolId) {
+      const { data, error } = await sb.from('tool_data').select('data, saved_at').eq('tool_id', toolId).maybeSingle()
+      if (error) throw new Error(error.message)
+      return data as { data: Record<string, string>; saved_at: string } | null
+    },
+    async saveMyToolData(toolId, data, savedAt) {
+      const { data: s } = await sb.auth.getSession()
+      check(
+        await sb
+          .from('tool_data')
+          .upsert({ user_id: s.session?.user.id, tool_id: toolId, data, saved_at: savedAt }, { onConflict: 'user_id,tool_id' }),
+      )
+    },
     async adminToolStats() {
       return check(await sb.rpc('admin_tool_stats')) as ToolStats
     },

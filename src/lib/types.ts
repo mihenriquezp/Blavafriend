@@ -305,6 +305,10 @@ export interface Api {
   /** Starts a visit to a tool; returns its id (null if it couldn't be recorded). */
   toolOpen(id: string): Promise<string | null>
   toolHeartbeat(sessionId: string, seconds: number, actions: number): Promise<void>
+  /** What I saved inside each tool, backed up to my account (see lib/toolData). */
+  listMyToolData(): Promise<{ tool_id: string; saved_at: string }[]>
+  getMyToolData(toolId: string): Promise<{ data: Record<string, string>; saved_at: string } | null>
+  saveMyToolData(toolId: string, data: Record<string, string>, savedAt: string): Promise<void>
   adminToolStats(): Promise<ToolStats>
 
   coffeeState(): Promise<CoffeeState>

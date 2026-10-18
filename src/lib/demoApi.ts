@@ -34,6 +34,7 @@ interface DemoState {
   notices: Notice[]
   /** Added later, so older saved demos may not have it. Rounds hold groups of student ids. */
   tools?: (Tool & { html: string })[]
+  toolData?: Record<string, { data: Record<string, string>; saved_at: string }>
   newsletters?: Newsletter[]
   newsletterChecks?: { newsletter_id: string; item_id: string }[]
   coffee?: { auto: boolean; entries: Record<string, boolean>; rounds: Record<string, string[][]> }
@@ -527,6 +528,17 @@ export function createDemoApi(): Api {
       return 'demo-session'
     },
     async toolHeartbeat() {},
+    async listMyToolData() {
+      return Object.entries(state.toolData ?? {}).map(([tool_id, d]) => ({ tool_id, saved_at: d.saved_at }))
+    },
+    async getMyToolData(toolId) {
+      const d = state.toolData?.[toolId]
+      return d ? clone(d) : null
+    },
+    async saveMyToolData(toolId, data, savedAt) {
+      ;(state.toolData ??= {})[toolId] = { data: clone(data), saved_at: savedAt }
+      save()
+    },
     async adminToolStats() {
       // Fictional numbers for the demo.
       const r = rng(5)
