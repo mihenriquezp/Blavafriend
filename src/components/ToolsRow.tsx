@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import { londonToday } from '../lib/coffee'
 import type { Tool } from '../lib/types'
+
+/** Shown on the home page: not hidden and not past its date (admins get every tool from the API). */
+export const toolShown = (t: Tool) => !t.hidden && (!t.remove_on || t.remove_on > londonToday())
 
 /** "Useful tools" on the home page: same look as the event cards, a row you can swipe. */
 export function ToolsRow() {
@@ -10,7 +14,7 @@ export function ToolsRow() {
   useEffect(() => {
     let live = true
     api.listTools().then(
-      (t) => live && setTools(t),
+      (t) => live && setTools(t.filter(toolShown)),
       () => {},
     )
     return () => {

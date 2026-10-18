@@ -194,7 +194,10 @@ export interface ToolStats {
   }[]
 }
 
-/** A useful tool: an HTML page uploaded by an admin, shown until remove_on. */
+/**
+ * A useful tool: an HTML page uploaded by an admin, shown until remove_on.
+ * Tools are never deleted by date, only hidden, so people's saved data keeps matching.
+ */
 export interface Tool {
   id: string
   title: string
@@ -202,9 +205,13 @@ export interface Tool {
   icon: string
   /** First day it is no longer shown (YYYY-MM-DD); null = no end date. */
   remove_on: string | null
+  /** Hidden by an admin (members can't see it; admins still can). */
+  hidden: boolean
   created_at: string
 }
-export type ToolInput = Pick<Tool, 'title' | 'description' | 'icon' | 'remove_on'> & { html?: string }
+export type ToolInput = Partial<Pick<Tool, 'title' | 'description' | 'icon' | 'remove_on' | 'hidden'>> & {
+  html?: string
+}
 
 /** Admin-only usage totals (see public.admin_usage). */
 export interface UsageData {
