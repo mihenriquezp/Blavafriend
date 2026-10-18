@@ -34,7 +34,7 @@ function detectPlatform(): Platform | null {
 const STEPS: Record<Platform, { steps: string[]; note: string }> = {
   ios: {
     steps: [
-      'Open blavafriend.vercel.app in Safari.',
+      'Open blavafriend.app in Safari.',
       'Tap the Share button (the square with an arrow ↑) at the bottom of the screen.',
       'Scroll down and tap “Add to Home Screen”.',
       'Tap “Add”. The Blavafriend icon appears on your home screen.',
@@ -43,7 +43,7 @@ const STEPS: Record<Platform, { steps: string[]; note: string }> = {
   },
   android: {
     steps: [
-      'Open blavafriend.vercel.app in Chrome.',
+      'Open blavafriend.app in Chrome.',
       'Tap the ⋮ menu in the top-right corner.',
       'Tap “Add to Home screen” or “Install app”.',
       'Tap “Install”. The Blavafriend icon appears on your home screen.',
@@ -77,7 +77,7 @@ export function InstallGuide() {
   return (
     <div>
       {!detected && (
-        <p className="mb-3 text-sm text-gray-600">Open blavafriend.vercel.app on your phone and follow these steps.</p>
+        <p className="mb-3 text-sm text-gray-600">Open blavafriend.app on your phone and follow these steps.</p>
       )}
       <div className="mb-3 grid grid-cols-2 gap-1 rounded-full bg-gray-100 p-1" role="tablist">
         {(['ios', 'android'] as const).map((p) => (
