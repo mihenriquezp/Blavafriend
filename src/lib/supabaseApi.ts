@@ -16,6 +16,8 @@ import type {
   SessionUser,
   Song,
   Student,
+  EngagementData,
+  FormalSlot,
   Tool,
   ToolStats,
   UsageData,
@@ -232,10 +234,47 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     async toolHeartbeat(sessionId, seconds, actions) {
       await sb.rpc('tool_heartbeat', { p_session: sessionId, p_seconds: seconds, p_actions: actions })
     },
+    async listMyToolData() {
+      return check(await sb.from('tool_data').select('tool_id, saved_at')) as { tool_id: string; saved_at: string }[]
+    },
+    async getMyToolData(toolId) {
+      const { data, error } = await sb.from('tool_data').select('data, saved_at').eq('tool_id', toolId).maybeSingle()
+      if (error) throw new Error(error.message)
+      return data as { data: Record<string, string>; saved_at: string } | null
+    },
+    async saveMyToolData(toolId, data, savedAt) {
+      const { data: s } = await sb.auth.getSession()
+      check(
+        await sb
+          .from('tool_data')
+          .upsert({ user_id: s.session?.user.id, tool_id: toolId, data, saved_at: savedAt }, { onConflict: 'user_id,tool_id' }),
+      )
+    },
+    async adminEngagement() {
+      return check(await sb.rpc('admin_engagement')) as EngagementData
+    },
     async adminToolStats() {
       return check(await sb.rpc('admin_tool_stats')) as ToolStats
     },
 
+    async formalBoard() {
+      const rows = check(await sb.rpc('formal_board')) as FormalSlot[]
+      return rows.map((r) => ({ ...r, price: Number(r.price) }))
+    },
+    async saveFormal(input, id) {
+      const { time, ...rest } = input
+      const row = { ...rest, at: time }
+      check(await (id ? sb.from('formal_slots').update(row).eq('id', id) : sb.from('formal_slots').insert(row)))
+    },
+    async deleteFormal(id) {
+      check(await sb.from('formal_slots').delete().eq('id', id))
+    },
+    async formalBook(id) {
+      check(await sb.rpc('formal_book', { p_slot: id }))
+    },
+    async formalCancel(id, guest) {
+      check(await sb.rpc('formal_cancel', { p_slot: id, p_guest: guest ?? null }))
+    },
     async coffeeState() {
       return check(await sb.rpc('coffee_state')) as CoffeeState
     },

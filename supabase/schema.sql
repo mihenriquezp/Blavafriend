@@ -701,6 +701,16 @@ begin
       'songs', (select count(*) from public.songs),
       'notices', (select count(*) from public.notices where expires_on is null or expires_on >= london_today())
     ),
+    -- Totals only: who offers or books a formal is never shown here.
+    'formals', jsonb_build_object(
+      'upcoming', (select count(*) from public.formal_slots where day >= public.london_today()),
+      'seats', (select coalesce(sum(capacity), 0) from public.formal_slots where day >= public.london_today()),
+      'booked', (
+        select count(*) from public.formal_bookings b
+        join public.formal_slots f on f.id = b.slot_id where f.day >= public.london_today()
+      ),
+      'total_bookings', (select count(*) from public.formal_bookings)
+    ),
     'coffee', jsonb_build_object(
       'auto', (select count(*) from public.coffee_auto),
       'next', (select count(*) from public.coffee_participants(public.coffee_open_round())),
@@ -748,6 +758,123 @@ begin
     'hours', (
       select jsonb_agg(jsonb_build_object('hour', h, 'n', (select count(distinct user_id) from acts where hour = h)) order by h)
       from generate_series(0, 23) h
+    )
+  ) into result;
+  return result;
+end;
+$$;
+
+-- Engagement: is it the same few people every time, or many people now and
+-- then? Counts only, by group; no names, no per-person rows. Students only
+-- (faculty and admins are left out). "Active" = opened the app or did something.
+create or replace function public.admin_engagement()
+returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp
+as $$
+declare
+  result jsonb;
+  today date := public.london_today();
+  this_week date := date_trunc('week', public.london_today())::date;
+begin
+  if not public.is_admin() then
+    raise exception 'Only admins can see usage stats';
+  end if;
+
+  with
+  people as (
+    select s.user_id
+    from public.students s join auth.users u on u.id = s.user_id
+    where s.role = 'student' and lower(u.email) not in (select email from public.app_admins)
+  ),
+  activity as (
+    select a.user_id, a.day
+    from (
+      select user_id, day from public.app_visits
+      union select owner_id, (created_at at time zone 'Europe/London')::date from public.relationship_events
+      union select created_by, (created_at at time zone 'Europe/London')::date from public.cal_events
+      union select created_by, (created_at at time zone 'Europe/London')::date from public.notices
+      union select user_id, (created_at at time zone 'Europe/London')::date from public.cal_rsvps
+      union select user_id, (created_at at time zone 'Europe/London')::date from public.coffee_entries
+    ) a
+    join people p on p.user_id = a.user_id
+  ),
+  -- Last 28 days per person.
+  recent as (
+    select p.user_id, count(distinct a.day) as days
+    from people p left join activity a on a.user_id = p.user_id and a.day > today - 28
+    group by p.user_id
+  ),
+  seg as (
+    select user_id, days,
+           case when days >= 8 then 'core' when days >= 3 then 'regular' when days >= 1 then 'occasional'
+                else 'dormant' end as segment
+    from recent
+  ),
+  -- What each person did in the last 28 days (beyond opening the app).
+  feats as (
+    select owner_id as user_id, 'levels' as f from public.relationship_events where created_at > now() - interval '28 days'
+    union select user_id, 'coffee' from public.coffee_entries where joining and created_at > now() - interval '28 days'
+    union select user_id, 'tools' from public.tool_sessions where started_at > now() - interval '28 days'
+    union select user_id, 'newsletter' from public.newsletter_views where day > today - 28
+    union select user_id, 'events' from public.cal_rsvps where created_at > now() - interval '28 days'
+    union select guest, 'formals' from public.formal_bookings where created_at > now() - interval '28 days'
+    union select host, 'formals' from public.formal_slots where created_at > now() - interval '28 days'
+  ),
+  ranked as (
+    select days, row_number() over (order by days desc) as rn, count(*) over () as n
+    from recent where days > 0
+  ),
+  -- Last 8 weeks (Monday to Sunday, Oxford time); the last one is this week so far.
+  weeks as (select this_week - 7 * i as w from generate_series(0, 7) i),
+  wact as (
+    select user_id, date_trunc('week', day)::date as w, count(*) as days from activity group by 1, 2
+  ),
+  first_seen as (select user_id, min(day) as first_day from activity group by 1)
+  select jsonb_build_object(
+    'cohort', (select count(*) from public.students where role = 'student'),
+    'joined', (select count(*) from people),
+    'segments', (
+      select jsonb_agg(jsonb_build_object(
+        'key', k.key,
+        'n', (select count(*) from seg where seg.segment = k.key),
+        'days', (select coalesce(sum(days), 0) from seg where seg.segment = k.key),
+        'features', (
+          select coalesce(jsonb_object_agg(f, n), '{}'::jsonb) from (
+            select feats.f, count(distinct feats.user_id) as n
+            from feats join seg on seg.user_id = feats.user_id
+            where seg.segment = k.key group by feats.f
+          ) x
+        )
+      ) order by k.ord)
+      from (values ('core', 1), ('regular', 2), ('occasional', 3), ('dormant', 4)) k(key, ord)
+    ),
+    'histogram', (
+      select jsonb_agg(jsonb_build_object('label', b.label, 'n', (select count(*) from recent r where r.days between b.lo and b.hi)) order by b.lo)
+      from (values ('0', 0, 0), ('1', 1, 1), ('2–3', 2, 3), ('4–7', 4, 7), ('8–14', 8, 14), ('15+', 15, 28)) b(label, lo, hi)
+    ),
+    'concentration', (
+      select jsonb_build_object(
+        'active', coalesce(max(n), 0),
+        'total_days', coalesce(sum(days), 0),
+        'top20_people', coalesce(ceil(max(n) * 0.2), 0),
+        'top20_days', coalesce(sum(days) filter (where rn <= ceil(n * 0.2)), 0)
+      ) from ranked
+    ),
+    'weeks', (
+      select jsonb_agg(jsonb_build_object(
+        'week', wk.w,
+        'active', (select count(*) from wact a where a.w = wk.w),
+        'person_days', (select coalesce(sum(a.days), 0) from wact a where a.w = wk.w),
+        'returning', (
+          select count(*) from wact a
+          where a.w = wk.w and exists (select 1 from wact b where b.user_id = a.user_id and b.w = wk.w - 7)
+        ),
+        'new', (
+          select count(*) from wact a join first_seen f on f.user_id = a.user_id
+          where a.w = wk.w and f.first_day >= wk.w
+        )
+      ) order by wk.w)
+      from weeks wk
     )
   ) into result;
   return result;
@@ -1129,6 +1256,25 @@ as $$
   select;
 $$;
 
+-- What each person saved inside a tool (stars, notes…), backed up to their
+-- account so it follows them to another device or address. Only the owner can
+-- read or write their own rows; admins see nothing.
+create table if not exists public.tool_data (
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  tool_id uuid not null references public.tools (id) on delete cascade,
+  data jsonb not null check (octet_length(data::text) <= 250000),
+  -- When the person saved it (their device's clock): the newest copy wins.
+  saved_at timestamptz not null,
+  primary key (user_id, tool_id)
+);
+
+alter table public.tool_data enable row level security;
+
+drop policy if exists "own tool data" on public.tool_data;
+create policy "own tool data" on public.tool_data
+  for all using (user_id = auth.uid() and public.is_member())
+  with check (user_id = auth.uid() and public.is_member());
+
 -- How tools are used: one row per visit (opened, seconds on screen, and how many
 -- times the tool saved something, a sign the person actually used it).
 -- Kept after a tool is removed (tool_id becomes null, the title stays).
@@ -1383,6 +1529,160 @@ begin
     ), '[]'::jsonb)
   ) into result;
   return result;
+end;
+$$;
+
+-------------------------------------------------------------------------------
+-- Formals: seats offered at college formal dinners, booked by classmates
+-------------------------------------------------------------------------------
+-- A host offers N seats at their college's formal (day, time, price). Others
+-- book a seat like an appointment; no money goes through the app, the guest
+-- pays the host directly. Everyone sees what is on offer and how many seats are
+-- left; only the host and that formal's guests see who is going.
+
+create table if not exists public.formal_slots (
+  id uuid primary key default gen_random_uuid(),
+  host uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  college text not null check (char_length(college) between 1 and 60),
+  day date not null,
+  at time not null,
+  -- Per seat, in pounds. 0 = free (the host treats).
+  price numeric(6, 2) not null default 0 check (price between 0 and 500),
+  capacity int not null check (capacity between 1 and 10),
+  notes text check (char_length(notes) <= 300),
+  created_at timestamptz not null default now()
+);
+create index if not exists formal_slots_day on public.formal_slots (day);
+
+create table if not exists public.formal_bookings (
+  slot_id uuid not null references public.formal_slots (id) on delete cascade,
+  guest uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (slot_id, guest)
+);
+
+alter table public.formal_slots enable row level security;
+alter table public.formal_bookings enable row level security;
+
+drop policy if exists "members read formals" on public.formal_slots;
+create policy "members read formals" on public.formal_slots
+  for select using (public.is_member());
+
+drop policy if exists "hosts add formals" on public.formal_slots;
+create policy "hosts add formals" on public.formal_slots
+  for insert with check (host = auth.uid() and public.is_member() and day >= public.london_today());
+
+drop policy if exists "hosts edit formals" on public.formal_slots;
+create policy "hosts edit formals" on public.formal_slots
+  for update using (host = auth.uid()) with check (host = auth.uid() and day >= public.london_today());
+
+drop policy if exists "hosts or admins delete formals" on public.formal_slots;
+create policy "hosts or admins delete formals" on public.formal_slots
+  for delete using (host = auth.uid() or public.is_admin());
+
+-- Bookings: no direct writes (formal_book / formal_cancel check the rules);
+-- you can read your own, and the host can read theirs.
+drop policy if exists "guest or host reads booking" on public.formal_bookings;
+create policy "guest or host reads booking" on public.formal_bookings
+  for select using (
+    guest = auth.uid()
+    or exists (select 1 from public.formal_slots s where s.id = slot_id and s.host = auth.uid())
+  );
+
+-- A host can't cut the seats below the number already booked.
+create or replace function public.formal_slots_guard()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if new.capacity < (select count(*) from public.formal_bookings where slot_id = new.id) then
+    raise exception 'Some of these seats are already booked: you can''t offer fewer than that.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists formal_slots_guard on public.formal_slots;
+create trigger formal_slots_guard before update on public.formal_slots
+  for each row execute function public.formal_slots_guard();
+
+-- Upcoming formals with seats taken, and (for the host and that formal's
+-- guests only) who is going.
+create or replace function public.formal_board()
+returns jsonb
+language sql stable security definer set search_path = public
+as $$
+  with s as (
+    select f.*,
+           (select count(*) from public.formal_bookings b where b.slot_id = f.id) as taken,
+           exists (select 1 from public.formal_bookings b where b.slot_id = f.id and b.guest = auth.uid()) as booked
+    from public.formal_slots f
+    where (f.day + f.at) at time zone 'Europe/London' > now()
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', s.id,
+    'host', s.host,
+    'college', s.college,
+    'day', s.day,
+    'time', to_char(s.at, 'HH24:MI'),
+    'price', s.price,
+    'capacity', s.capacity,
+    'notes', s.notes,
+    'taken', s.taken,
+    'mine', s.host = auth.uid(),
+    'booked', s.booked,
+    'guests', case when s.host = auth.uid() or s.booked then coalesce((
+      select jsonb_agg(b.guest order by b.created_at) from public.formal_bookings b where b.slot_id = s.id
+    ), '[]'::jsonb) else '[]'::jsonb end
+  ) order by s.day, s.at), '[]'::jsonb)
+  from s
+  where public.is_member();
+$$;
+
+-- Book one seat. Locks the formal so two people can't take the last seat.
+create or replace function public.formal_book(p_slot uuid)
+returns void
+language plpgsql volatile security definer set search_path = public
+as $$
+declare
+  f public.formal_slots;
+begin
+  if not public.is_member() then
+    raise exception 'Not allowed';
+  end if;
+  select * into f from public.formal_slots where id = p_slot for update;
+  if not found then
+    raise exception 'This formal is no longer offered.';
+  end if;
+  if f.host = auth.uid() then
+    raise exception 'You can''t book a seat at your own formal.';
+  end if;
+  if (f.day + f.at) at time zone 'Europe/London' <= now() then
+    raise exception 'This formal has already started.';
+  end if;
+  if exists (select 1 from public.formal_bookings where slot_id = p_slot and guest = auth.uid()) then
+    return;
+  end if;
+  if (select count(*) from public.formal_bookings where slot_id = p_slot) >= f.capacity then
+    raise exception 'Sorry, the last seat was just taken.';
+  end if;
+  insert into public.formal_bookings (slot_id, guest) values (p_slot, auth.uid());
+end;
+$$;
+
+-- Cancel your own seat, or (as the host) take a guest off your formal.
+create or replace function public.formal_cancel(p_slot uuid, p_guest uuid default null)
+returns void
+language plpgsql volatile security definer set search_path = public
+as $$
+begin
+  if p_guest is null or p_guest = auth.uid() then
+    delete from public.formal_bookings where slot_id = p_slot and guest = auth.uid();
+  elsif exists (select 1 from public.formal_slots where id = p_slot and host = auth.uid()) then
+    delete from public.formal_bookings where slot_id = p_slot and guest = p_guest;
+  else
+    raise exception 'Not allowed';
+  end if;
 end;
 $$;
 

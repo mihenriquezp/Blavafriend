@@ -2,12 +2,14 @@
 // and lives in this browser's localStorage, so anyone can try the app safely.
 import { COLLEGES, COUNTRIES, GENDER_OPTIONS, HOBBIES, LANGUAGES, POLICY_INTERESTS, UNDERGRAD_FIELDS, type Level } from './options'
 import { computeCohort, type Rating } from './cohort'
-import { addDays, drawAt, matchGroups, openRound } from './coffee'
+import { addDays, drawAt, londonToday, matchGroups, openRound } from './coffee'
 import type {
   Api,
   CalEvent,
   CoffeeState,
   CustomTag,
+  EngagementData,
+  FormalSlot,
   Newsletter,
   Tool,
   Notice,
@@ -34,10 +36,13 @@ interface DemoState {
   notices: Notice[]
   /** Added later, so older saved demos may not have it. Rounds hold groups of student ids. */
   tools?: (Tool & { html: string })[]
+  toolData?: Record<string, { data: Record<string, string>; saved_at: string }>
   newsletters?: Newsletter[]
   newsletterChecks?: { newsletter_id: string; item_id: string }[]
   coffee?: { auto: boolean; entries: Record<string, boolean>; rounds: Record<string, string[][]> }
+  formals?: { slots: DemoFormal[]; bookings: { slot_id: string; guest: string }[] }
 }
+type DemoFormal = Omit<FormalSlot, 'taken' | 'mine' | 'booked' | 'guests'>
 
 /** Stable pseudo-random number for a string (demo only). */
 const hash = (s: string) => [...s].reduce((x, ch) => (Math.imul(x, 31) + ch.charCodeAt(0)) >>> 0, 7)
@@ -198,6 +203,39 @@ export function createDemoApi(): Api {
   }
 
   const coffee = () => (state.coffee ??= { auto: false, entries: {}, rounds: {} })
+  // A few fictional formals offered by fictional classmates.
+  const formals = () =>
+    (state.formals ??= (() => {
+      const today = londonToday()
+      const hosts = state.students.filter((s) => s.user_id?.startsWith('demo-u-'))
+      const slots: DemoFormal[] = [
+        [0, 2, '19:15', 25, 2, 'Black tie, gowns optional. Drinks in the bar before.'],
+        [1, 3, '19:30', 0, 1, 'My treat! Just bring good conversation.'],
+        [2, 3, '19:00', 30, 3, null],
+        [3, 6, '19:30', 22.5, 2, 'Meet at the porters’ lodge at 19:10.'],
+        [4, 9, '19:15', 28, 1, null],
+        [0, 13, '19:15', 25, 4, 'Halloween formal: dress up!'],
+      ].map(([h, d, time, price, capacity, notes], i) => {
+        const host = hosts[(h as number) % hosts.length]
+        return {
+          id: `formal-${i}`,
+          host: host.user_id!,
+          college: host.college ?? COLLEGES[i],
+          day: addDays(today, d as number),
+          time: time as string,
+          price: price as number,
+          capacity: capacity as number,
+          notes: notes as string | null,
+        }
+      })
+      const bookings = [
+        { slot_id: 'formal-0', guest: hosts[5].user_id! },
+        { slot_id: 'formal-2', guest: hosts[1].user_id! },
+        { slot_id: 'formal-2', guest: hosts[6].user_id! },
+        { slot_id: 'formal-4', guest: hosts[2].user_id! },
+      ]
+      return { slots, bookings }
+    })())
   // A fictional sample newsletter for the demo.
   const newsletters = () =>
     (state.newsletters ??= [
@@ -527,6 +565,48 @@ export function createDemoApi(): Api {
       return 'demo-session'
     },
     async toolHeartbeat() {},
+    async listMyToolData() {
+      return Object.entries(state.toolData ?? {}).map(([tool_id, d]) => ({ tool_id, saved_at: d.saved_at }))
+    },
+    async getMyToolData(toolId) {
+      const d = state.toolData?.[toolId]
+      return d ? clone(d) : null
+    },
+    async saveMyToolData(toolId, data, savedAt) {
+      ;(state.toolData ??= {})[toolId] = { data: clone(data), saved_at: savedAt }
+      save()
+    },
+    async adminEngagement(): Promise<EngagementData> {
+      // Fictional numbers for the demo: a core group plus many occasional users.
+      const week0 = addDays(londonToday(), -((new Date(`${londonToday()}T12:00:00Z`).getUTCDay() + 6) % 7))
+      const act = [9, 14, 31, 38, 33, 36, 34, 22]
+      return {
+        cohort: 74,
+        joined: 58,
+        segments: [
+          { key: 'core' as const, n: 11, days: 142, features: { levels: 9, coffee: 8, tools: 7, newsletter: 10, events: 6, formals: 3 } },
+          { key: 'regular' as const, n: 17, days: 73, features: { levels: 10, coffee: 9, tools: 6, newsletter: 12, events: 5, formals: 2 } },
+          { key: 'occasional' as const, n: 19, days: 27, features: { levels: 6, coffee: 4, tools: 3, newsletter: 7, events: 1 } },
+          { key: 'dormant' as const, n: 11, days: 0, features: {} },
+        ],
+        histogram: [
+          { label: '0', n: 11 },
+          { label: '1', n: 12 },
+          { label: '2–3', n: 13 },
+          { label: '4–7', n: 11 },
+          { label: '8–14', n: 8 },
+          { label: '15+', n: 3 },
+        ],
+        concentration: { active: 47, total_days: 242, top20_people: 10, top20_days: 121 },
+        weeks: act.map((a, i) => ({
+          week: addDays(week0, (i - 7) * 7),
+          active: a,
+          person_days: Math.round(a * [1.4, 1.6, 2.6, 2.3, 2.1, 2.2, 2.0, 1.5][i]),
+          returning: i ? Math.min(a, Math.round(act[i - 1] * 0.62)) : 0,
+          new: [9, 8, 15, 6, 3, 2, 2, 1][i],
+        })),
+      }
+    },
     async adminToolStats() {
       // Fictional numbers for the demo.
       const r = rng(5)
@@ -553,6 +633,56 @@ export function createDemoApi(): Api {
     },
     async deleteTool(id) {
       state.tools = tools().filter((t) => t.id !== id)
+      save()
+    },
+
+    async formalBoard() {
+      const { slots, bookings } = formals()
+      const now = new Date()
+      const me = DEMO_USER.id
+      return slots
+        .filter((s) => new Date(`${s.day}T${s.time}:00`) > now)
+        .sort((a, b) => (a.day + a.time).localeCompare(b.day + b.time))
+        .map((s) => {
+          const guests = bookings.filter((b) => b.slot_id === s.id).map((b) => b.guest)
+          const mine = s.host === me
+          const booked = guests.includes(me)
+          return clone({ ...s, taken: guests.length, mine, booked, guests: mine || booked ? guests : [] })
+        })
+    },
+    async saveFormal(input, id) {
+      const f = formals()
+      if (id) {
+        const s = f.slots.find((x) => x.id === id && x.host === DEMO_USER.id)
+        if (!s) throw new Error('Not allowed')
+        if (input.capacity < f.bookings.filter((b) => b.slot_id === id).length)
+          throw new Error('Some of these seats are already booked: you can’t offer fewer than that.')
+        Object.assign(s, input)
+      } else f.slots.push({ ...input, id: crypto.randomUUID(), host: DEMO_USER.id })
+      save()
+    },
+    async deleteFormal(id) {
+      const f = formals()
+      f.slots = f.slots.filter((s) => !(s.id === id && s.host === DEMO_USER.id))
+      f.bookings = f.bookings.filter((b) => f.slots.some((s) => s.id === b.slot_id))
+      save()
+    },
+    async formalBook(id) {
+      const f = formals()
+      const s = f.slots.find((x) => x.id === id)
+      if (!s) throw new Error('This formal is no longer offered.')
+      if (s.host === DEMO_USER.id) throw new Error('You can’t book a seat at your own formal.')
+      const guests = f.bookings.filter((b) => b.slot_id === id)
+      if (guests.some((b) => b.guest === DEMO_USER.id)) return
+      if (guests.length >= s.capacity) throw new Error('Sorry, the last seat was just taken.')
+      f.bookings.push({ slot_id: id, guest: DEMO_USER.id })
+      save()
+    },
+    async formalCancel(id, guest) {
+      const f = formals()
+      const who = guest ?? DEMO_USER.id
+      if (who !== DEMO_USER.id && !f.slots.some((s) => s.id === id && s.host === DEMO_USER.id)) throw new Error('Not allowed')
+      f.bookings = f.bookings.filter((b) => !(b.slot_id === id && b.guest === who))
       save()
     },
 
@@ -627,6 +757,12 @@ export function createDemoApi(): Api {
           notices: state.notices.length,
         },
         coffee: { auto: 9, next: participants(openRound()).length, last: { round: addDays(openRound(), -7), people: 19, groups: 9 } },
+        formals: {
+          upcoming: formals().slots.length,
+          seats: formals().slots.reduce((n, s) => n + s.capacity, 0),
+          booked: formals().bookings.length,
+          total_bookings: formals().bookings.length,
+        },
       }
     },
 

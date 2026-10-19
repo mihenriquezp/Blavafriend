@@ -2,19 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Spinner } from '../components/ui'
 import { api } from '../lib/api'
+import { loadToolData, toolSaver, type ToolSaved } from '../lib/toolData'
 import type { Tool } from '../lib/types'
 
-const storageKey = (id: string) => `blavafriend-tool-${id}`
 const HEARTBEAT_S = 15
-const MAX_SAVED = 200_000 // characters kept per tool on this device
-
-function loadSaved(id: string): Record<string, string> {
-  try {
-    return JSON.parse(localStorage.getItem(storageKey(id)) ?? '{}') ?? {}
-  } catch {
-    return {}
-  }
-}
 
 /**
  * The page runs in a sandbox with no access to the app's origin, where the
@@ -36,6 +27,7 @@ export default function ToolPage() {
   const { id = '' } = useParams()
   const [tool, setTool] = useState<Tool | null>(null)
   const [html, setHtml] = useState<string | null>(null)
+  const [saved, setSaved] = useState<ToolSaved | null>(null)
   const [error, setError] = useState<string | null>(null)
   const frame = useRef<HTMLIFrameElement>(null)
   // Usage (totals only for admins): seconds on screen and how often the tool saved something.
@@ -49,10 +41,11 @@ export default function ToolPage() {
 
   useEffect(() => {
     let live = true
-    Promise.all([api.listTools(), api.getToolHtml(id)]).then(
-      ([list, h]) => {
+    Promise.all([api.listTools(), api.getToolHtml(id), loadToolData(id)]).then(
+      ([list, h, data]) => {
         if (!live) return
         setTool(list.find((t) => t.id === id) ?? null)
+        setSaved(data)
         setHtml(h)
       },
       () => live && setError('This tool is no longer available.'),
@@ -64,21 +57,24 @@ export default function ToolPage() {
 
   // Save what the tool stores, only from this tool's own frame.
   useEffect(() => {
+    const saver = toolSaver(id)
     const onMessage = (e: MessageEvent) => {
       if (e.source !== frame.current?.contentWindow) return
       const data = (e.data as { bfToolStorage?: unknown } | null)?.bfToolStorage
       if (!data || typeof data !== 'object') return
       visit.current.actions += 1
-      const text = JSON.stringify(data)
-      if (text.length > MAX_SAVED) return
-      try {
-        localStorage.setItem(storageKey(id), text)
-      } catch {
-        /* storage full or blocked: the tool still works, just doesn't remember */
-      }
+      saver.save(data as ToolSaved)
     }
+    const onHide = () => document.visibilityState === 'hidden' && saver.flush()
     window.addEventListener('message', onMessage)
-    return () => window.removeEventListener('message', onMessage)
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('pagehide', saver.flush)
+    return () => {
+      window.removeEventListener('message', onMessage)
+      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('pagehide', saver.flush)
+      saver.flush()
+    }
   }, [id])
 
   // Record the visit once the tool has loaded, and keep its time up to date.
@@ -114,7 +110,7 @@ export default function ToolPage() {
     }
   }, [id, loaded])
 
-  const srcDoc = useMemo(() => (html === null ? null : withStorageShim(html, loadSaved(id))), [html, id])
+  const srcDoc = useMemo(() => (html === null || !saved ? null : withStorageShim(html, saved)), [html, saved])
 
   if (error)
     return (
@@ -151,8 +147,8 @@ export default function ToolPage() {
         className="h-[calc(100dvh-14rem)] min-h-[520px] w-full rounded-2xl bg-white ring-1 ring-gray-200"
       />
       <p className="text-xs text-gray-400">
-        Runs in a secure sandbox: it can’t see your account or your data in Blavafriend. Anything it saves stays on this
-        device.
+        Runs in a secure sandbox: it can’t see your account or your data in Blavafriend. What you save in it is kept on
+        this device and backed up to your account, visible only to you.
       </p>
     </div>
   )
