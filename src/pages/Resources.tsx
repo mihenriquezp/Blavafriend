@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Coffee } from '../components/Coffee'
+import { Formals } from '../components/Formals'
 import { Avatar, Card, Field, Spinner, btnPrimary, btnSecondary, inputCls } from '../components/ui'
 import { api } from '../lib/api'
 import { resizeImage } from '../lib/image'
 import { callName } from '../lib/names'
 import { useStore } from '../lib/store'
-import type { CalEvent, CalEventInput, Notice, NoticeCategory, NoticeInput, Rsvp, Song, Student } from '../lib/types'
+import type { CalEvent, CalEventInput, Notice, NoticeCategory, NoticeInput, Rsvp, Student } from '../lib/types'
 
-type Tab = 'events' | 'coffee' | 'music' | 'notices'
+type Tab = 'events' | 'coffee' | 'formals' | 'notices'
 const TABS: { value: Tab; label: string; emoji: string }[] = [
   { value: 'coffee', label: 'Coffee roulette', emoji: '☕' },
+  { value: 'formals', label: 'Formals', emoji: '🎓' },
   { value: 'events', label: 'Events', emoji: '📅' },
-  { value: 'music', label: 'Music', emoji: '🎵' },
   { value: 'notices', label: 'Notice board', emoji: '📢' },
 ]
 
@@ -36,12 +37,6 @@ const safeLink = (v: string) => {
   }
 }
 
-/** Accepts open.spotify.com/track/… (incl. intl-xx/ and ?si=…) or spotify:track:… */
-export function parseSpotifyTrack(input: string): string | null {
-  const m = input.trim().match(/(?:open\.spotify\.com\/(?:intl-[a-z-]+\/)?track\/|spotify:track:)([A-Za-z0-9]{22})/i)
-  return m ? m[1] : null
-}
-
 const dateFmt = (iso: string, opts: Intl.DateTimeFormatOptions) => new Date(iso).toLocaleString('en-GB', opts)
 
 function useAuthors() {
@@ -54,14 +49,15 @@ function useAuthors() {
 
 export default function Resources() {
   const [params, setParams] = useSearchParams()
-  const tab = (params.get('tab') as Tab) || 'coffee'
+  const asked = params.get('tab') as Tab
+  const tab = TABS.some((t) => t.value === asked) ? asked : 'coffee'
   return (
     <div className="space-y-4">
       <div>
         <h1 className="font-display text-2xl font-bold text-oxford-900">Coffee +</h1>
         <p className="text-sm text-gray-500">
-          Plans, coffees, music and tips from the cohort. Everything here is visible to all classmates, except your coffee
-          match.
+          Coffees, formals, plans and tips from the cohort. Everything here is visible to all classmates, except your coffee
+          match and who is going to each formal.
         </p>
       </div>
       <div className="flex gap-1 overflow-x-auto" role="tablist">
@@ -81,7 +77,7 @@ export default function Resources() {
       </div>
       {tab === 'events' && <Events />}
       {tab === 'coffee' && <Coffee />}
-      {tab === 'music' && <Music />}
+      {tab === 'formals' && <Formals />}
       {tab === 'notices' && <Notices />}
     </div>
   )
@@ -429,111 +425,6 @@ function EventForm({ initial, onCancel, onSaved }: { initial: CalEvent | null; o
         )}
       </Field>
     </FormCard>
-  )
-}
-
-/* ------------------------------------------------------------------- Music */
-
-function Music() {
-  const { user, isAdmin } = useStore()
-  const author = useAuthors()
-  const [songs, setSongs] = useState<Song[] | null>(null)
-  const [url, setUrl] = useState('')
-  const [note, setNote] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [limit, setLimit] = useState(10)
-
-  const load = useCallback(() => api.listSongs().then(setSongs, (e) => setError(String(e))), [])
-  useEffect(() => {
-    load()
-  }, [load])
-
-  const trackId = parseSpotifyTrack(url)
-
-  const add = async () => {
-    if (!trackId) return setError('Paste a Spotify song link (Share → Copy song link).')
-    setBusy(true)
-    setError(null)
-    try {
-      await api.addSong(trackId, note.trim() || null)
-      setUrl('')
-      setNote('')
-      load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="space-y-3">
-      <Card>
-        <h2 className="font-semibold text-oxford-900">🎧 Share a song you love</h2>
-        <p className="mb-3 text-xs text-gray-500">In Spotify: ⋯ → Share → Copy song link, then paste it here.</p>
-        <div className="space-y-2">
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://open.spotify.com/track/…"
-            className={inputCls}
-            aria-label="Spotify song link"
-          />
-          {url && !trackId && <p className="text-xs text-amber-700">That doesn’t look like a Spotify song link.</p>}
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            maxLength={200}
-            placeholder="Why you love it (optional)"
-            className={inputCls}
-            aria-label="Why you love it"
-          />
-          <button className={btnPrimary} disabled={busy || !trackId} onClick={add}>
-            {busy ? 'Adding…' : 'Add to the cohort playlist'}
-          </button>
-          {error && <p className="text-sm text-red-700">{error}</p>}
-        </div>
-      </Card>
-
-      {!songs ? (
-        <Spinner />
-      ) : songs.length ? (
-        <>
-          {songs.slice(0, limit).map((s) => (
-            <Card key={s.id} className="!p-3">
-              <iframe
-                title="Spotify song"
-                src={`https://open.spotify.com/embed/track/${s.spotify_id}?utm_source=generator`}
-                width="100%"
-                height="80"
-                loading="lazy"
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                className="rounded-xl border-0"
-              />
-              {s.note && <p className="mt-2 text-sm text-gray-700 italic">“{s.note}”</p>}
-              <PostFooter
-                by={author(s.created_by)}
-                at={s.created_at}
-                canEdit={s.created_by === user!.id || isAdmin}
-                onDelete={async () => {
-                  if (!confirm('Remove this song?')) return
-                  await api.deleteSong(s.id)
-                  load()
-                }}
-              />
-            </Card>
-          ))}
-          {songs.length > limit && (
-            <button className={`${btnSecondary} w-full`} onClick={() => setLimit((l) => l + 10)}>
-              Show more songs ({songs.length - limit} more)
-            </button>
-          )}
-        </>
-      ) : (
-        <Empty emoji="🎵" text="No songs yet. Start the cohort playlist!" />
-      )}
-    </div>
   )
 }
 

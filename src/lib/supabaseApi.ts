@@ -16,6 +16,7 @@ import type {
   SessionUser,
   Song,
   Student,
+  FormalSlot,
   Tool,
   ToolStats,
   UsageData,
@@ -252,6 +253,24 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       return check(await sb.rpc('admin_tool_stats')) as ToolStats
     },
 
+    async formalBoard() {
+      const rows = check(await sb.rpc('formal_board')) as FormalSlot[]
+      return rows.map((r) => ({ ...r, price: Number(r.price) }))
+    },
+    async saveFormal(input, id) {
+      const { time, ...rest } = input
+      const row = { ...rest, at: time }
+      check(await (id ? sb.from('formal_slots').update(row).eq('id', id) : sb.from('formal_slots').insert(row)))
+    },
+    async deleteFormal(id) {
+      check(await sb.from('formal_slots').delete().eq('id', id))
+    },
+    async formalBook(id) {
+      check(await sb.rpc('formal_book', { p_slot: id }))
+    },
+    async formalCancel(id, guest) {
+      check(await sb.rpc('formal_cancel', { p_slot: id, p_guest: guest ?? null }))
+    },
     async coffeeState() {
       return check(await sb.rpc('coffee_state')) as CoffeeState
     },

@@ -701,6 +701,16 @@ begin
       'songs', (select count(*) from public.songs),
       'notices', (select count(*) from public.notices where expires_on is null or expires_on >= london_today())
     ),
+    -- Totals only: who offers or books a formal is never shown here.
+    'formals', jsonb_build_object(
+      'upcoming', (select count(*) from public.formal_slots where day >= public.london_today()),
+      'seats', (select coalesce(sum(capacity), 0) from public.formal_slots where day >= public.london_today()),
+      'booked', (
+        select count(*) from public.formal_bookings b
+        join public.formal_slots f on f.id = b.slot_id where f.day >= public.london_today()
+      ),
+      'total_bookings', (select count(*) from public.formal_bookings)
+    ),
     'coffee', jsonb_build_object(
       'auto', (select count(*) from public.coffee_auto),
       'next', (select count(*) from public.coffee_participants(public.coffee_open_round())),
@@ -1402,6 +1412,160 @@ begin
     ), '[]'::jsonb)
   ) into result;
   return result;
+end;
+$$;
+
+-------------------------------------------------------------------------------
+-- Formals: seats offered at college formal dinners, booked by classmates
+-------------------------------------------------------------------------------
+-- A host offers N seats at their college's formal (day, time, price). Others
+-- book a seat like an appointment; no money goes through the app, the guest
+-- pays the host directly. Everyone sees what is on offer and how many seats are
+-- left; only the host and that formal's guests see who is going.
+
+create table if not exists public.formal_slots (
+  id uuid primary key default gen_random_uuid(),
+  host uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  college text not null check (char_length(college) between 1 and 60),
+  day date not null,
+  at time not null,
+  -- Per seat, in pounds. 0 = free (the host treats).
+  price numeric(6, 2) not null default 0 check (price between 0 and 500),
+  capacity int not null check (capacity between 1 and 10),
+  notes text check (char_length(notes) <= 300),
+  created_at timestamptz not null default now()
+);
+create index if not exists formal_slots_day on public.formal_slots (day);
+
+create table if not exists public.formal_bookings (
+  slot_id uuid not null references public.formal_slots (id) on delete cascade,
+  guest uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (slot_id, guest)
+);
+
+alter table public.formal_slots enable row level security;
+alter table public.formal_bookings enable row level security;
+
+drop policy if exists "members read formals" on public.formal_slots;
+create policy "members read formals" on public.formal_slots
+  for select using (public.is_member());
+
+drop policy if exists "hosts add formals" on public.formal_slots;
+create policy "hosts add formals" on public.formal_slots
+  for insert with check (host = auth.uid() and public.is_member() and day >= public.london_today());
+
+drop policy if exists "hosts edit formals" on public.formal_slots;
+create policy "hosts edit formals" on public.formal_slots
+  for update using (host = auth.uid()) with check (host = auth.uid() and day >= public.london_today());
+
+drop policy if exists "hosts or admins delete formals" on public.formal_slots;
+create policy "hosts or admins delete formals" on public.formal_slots
+  for delete using (host = auth.uid() or public.is_admin());
+
+-- Bookings: no direct writes (formal_book / formal_cancel check the rules);
+-- you can read your own, and the host can read theirs.
+drop policy if exists "guest or host reads booking" on public.formal_bookings;
+create policy "guest or host reads booking" on public.formal_bookings
+  for select using (
+    guest = auth.uid()
+    or exists (select 1 from public.formal_slots s where s.id = slot_id and s.host = auth.uid())
+  );
+
+-- A host can't cut the seats below the number already booked.
+create or replace function public.formal_slots_guard()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if new.capacity < (select count(*) from public.formal_bookings where slot_id = new.id) then
+    raise exception 'Some of these seats are already booked: you can''t offer fewer than that.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists formal_slots_guard on public.formal_slots;
+create trigger formal_slots_guard before update on public.formal_slots
+  for each row execute function public.formal_slots_guard();
+
+-- Upcoming formals with seats taken, and (for the host and that formal's
+-- guests only) who is going.
+create or replace function public.formal_board()
+returns jsonb
+language sql stable security definer set search_path = public
+as $$
+  with s as (
+    select f.*,
+           (select count(*) from public.formal_bookings b where b.slot_id = f.id) as taken,
+           exists (select 1 from public.formal_bookings b where b.slot_id = f.id and b.guest = auth.uid()) as booked
+    from public.formal_slots f
+    where (f.day + f.at) at time zone 'Europe/London' > now()
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', s.id,
+    'host', s.host,
+    'college', s.college,
+    'day', s.day,
+    'time', to_char(s.at, 'HH24:MI'),
+    'price', s.price,
+    'capacity', s.capacity,
+    'notes', s.notes,
+    'taken', s.taken,
+    'mine', s.host = auth.uid(),
+    'booked', s.booked,
+    'guests', case when s.host = auth.uid() or s.booked then coalesce((
+      select jsonb_agg(b.guest order by b.created_at) from public.formal_bookings b where b.slot_id = s.id
+    ), '[]'::jsonb) else '[]'::jsonb end
+  ) order by s.day, s.at), '[]'::jsonb)
+  from s
+  where public.is_member();
+$$;
+
+-- Book one seat. Locks the formal so two people can't take the last seat.
+create or replace function public.formal_book(p_slot uuid)
+returns void
+language plpgsql volatile security definer set search_path = public
+as $$
+declare
+  f public.formal_slots;
+begin
+  if not public.is_member() then
+    raise exception 'Not allowed';
+  end if;
+  select * into f from public.formal_slots where id = p_slot for update;
+  if not found then
+    raise exception 'This formal is no longer offered.';
+  end if;
+  if f.host = auth.uid() then
+    raise exception 'You can''t book a seat at your own formal.';
+  end if;
+  if (f.day + f.at) at time zone 'Europe/London' <= now() then
+    raise exception 'This formal has already started.';
+  end if;
+  if exists (select 1 from public.formal_bookings where slot_id = p_slot and guest = auth.uid()) then
+    return;
+  end if;
+  if (select count(*) from public.formal_bookings where slot_id = p_slot) >= f.capacity then
+    raise exception 'Sorry, the last seat was just taken.';
+  end if;
+  insert into public.formal_bookings (slot_id, guest) values (p_slot, auth.uid());
+end;
+$$;
+
+-- Cancel your own seat, or (as the host) take a guest off your formal.
+create or replace function public.formal_cancel(p_slot uuid, p_guest uuid default null)
+returns void
+language plpgsql volatile security definer set search_path = public
+as $$
+begin
+  if p_guest is null or p_guest = auth.uid() then
+    delete from public.formal_bookings where slot_id = p_slot and guest = auth.uid();
+  elsif exists (select 1 from public.formal_slots where id = p_slot and host = auth.uid()) then
+    delete from public.formal_bookings where slot_id = p_slot and guest = p_guest;
+  else
+    raise exception 'Not allowed';
+  end if;
 end;
 $$;
 

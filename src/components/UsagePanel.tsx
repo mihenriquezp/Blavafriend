@@ -105,7 +105,15 @@ export function UsagePanel() {
             <Row label="Private notes written" value={data.notes} />
             <Row label="📅 Events (upcoming)" value={`${data.resources.events} (${data.resources.upcoming_events})`} />
             <Row label="RSVPs" value={data.resources.rsvps} />
-            <Row label="🎵 Songs" value={data.resources.songs} />
+            {data.formals && (
+              <>
+                <Row
+                  label="🎓 Formals: upcoming (seats booked)"
+                  value={`${data.formals.upcoming} (${data.formals.booked} of ${data.formals.seats})`}
+                />
+                <Row label="Formal seats booked (all time)" value={data.formals.total_bookings} />
+              </>
+            )}
             <Row label="📢 Active notices" value={data.resources.notices} />
             {data.coffee && (
               <>

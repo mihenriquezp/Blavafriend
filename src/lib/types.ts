@@ -213,6 +213,28 @@ export type ToolInput = Partial<Pick<Tool, 'title' | 'description' | 'icon' | 'r
   html?: string
 }
 
+/** Seats offered at a college formal (see public.formal_board). */
+export interface FormalSlot {
+  id: string
+  /** The host's user id (students.user_id). */
+  host: string
+  college: string
+  /** YYYY-MM-DD and HH:MM, Oxford time. */
+  day: string
+  time: string
+  /** Per seat, in pounds; 0 = free. */
+  price: number
+  capacity: number
+  notes: string | null
+  taken: number
+  /** I'm the host / I have a seat. */
+  mine: boolean
+  booked: boolean
+  /** Who is going (user ids): only for the host and that formal's guests. */
+  guests: string[]
+}
+export type FormalInput = Pick<FormalSlot, 'college' | 'day' | 'time' | 'price' | 'capacity' | 'notes'>
+
 /** Admin-only usage totals (see public.admin_usage). */
 export interface UsageData {
   cohort: number
@@ -229,6 +251,7 @@ export interface UsageData {
   profiles: { photo: number; birthday: number; country: number; hobbies: number; bio: number; languages: number }
   resources: { events: number; upcoming_events: number; rsvps: number; songs: number; notices: number }
   coffee?: { auto: number; next: number; last: { round: string; people: number; groups: number } | null }
+  formals?: { upcoming: number; seats: number; booked: number; total_bookings: number }
 }
 
 /** The signed-in person's view of the weekly coffee roulette (see public.coffee_state). */
@@ -310,6 +333,14 @@ export interface Api {
   getMyToolData(toolId: string): Promise<{ data: Record<string, string>; saved_at: string } | null>
   saveMyToolData(toolId: string, data: Record<string, string>, savedAt: string): Promise<void>
   adminToolStats(): Promise<ToolStats>
+
+  /** Upcoming formals with seats left (who is going only on your own or booked ones). */
+  formalBoard(): Promise<FormalSlot[]>
+  saveFormal(input: FormalInput, id?: string): Promise<void>
+  deleteFormal(id: string): Promise<void>
+  formalBook(id: string): Promise<void>
+  /** Cancel my seat, or as the host take a guest (user id) off my formal. */
+  formalCancel(id: string, guest?: string): Promise<void>
 
   coffeeState(): Promise<CoffeeState>
   coffeeJoin(join: boolean): Promise<CoffeeState>

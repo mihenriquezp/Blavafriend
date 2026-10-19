@@ -66,8 +66,9 @@ export default function About() {
           </li>
           <li>Everything except your name is optional, and you can edit or remove it at any time from your profile.</li>
           <li>
-            In Coffee +, the events, songs and notices you post, and the events you say you’re going to, are visible to
-            classmates with your name. You can delete your posts at any time.
+            In Coffee +, the events, notices and formal seats you post, and the events you say you’re going to, are
+            visible to classmates with your name. Who books a seat at a formal is seen only by the host and that
+            formal’s guests. The app never handles money. You can delete your posts at any time.
           </li>
           <li>Profile photos are stored at an unguessable link that isn't listed anywhere public.</li>
           <li>
