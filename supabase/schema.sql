@@ -764,6 +764,123 @@ begin
 end;
 $$;
 
+-- Engagement: is it the same few people every time, or many people now and
+-- then? Counts only, by group; no names, no per-person rows. Students only
+-- (faculty and admins are left out). "Active" = opened the app or did something.
+create or replace function public.admin_engagement()
+returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp
+as $$
+declare
+  result jsonb;
+  today date := public.london_today();
+  this_week date := date_trunc('week', public.london_today())::date;
+begin
+  if not public.is_admin() then
+    raise exception 'Only admins can see usage stats';
+  end if;
+
+  with
+  people as (
+    select s.user_id
+    from public.students s join auth.users u on u.id = s.user_id
+    where s.role = 'student' and lower(u.email) not in (select email from public.app_admins)
+  ),
+  activity as (
+    select a.user_id, a.day
+    from (
+      select user_id, day from public.app_visits
+      union select owner_id, (created_at at time zone 'Europe/London')::date from public.relationship_events
+      union select created_by, (created_at at time zone 'Europe/London')::date from public.cal_events
+      union select created_by, (created_at at time zone 'Europe/London')::date from public.notices
+      union select user_id, (created_at at time zone 'Europe/London')::date from public.cal_rsvps
+      union select user_id, (created_at at time zone 'Europe/London')::date from public.coffee_entries
+    ) a
+    join people p on p.user_id = a.user_id
+  ),
+  -- Last 28 days per person.
+  recent as (
+    select p.user_id, count(distinct a.day) as days
+    from people p left join activity a on a.user_id = p.user_id and a.day > today - 28
+    group by p.user_id
+  ),
+  seg as (
+    select user_id, days,
+           case when days >= 8 then 'core' when days >= 3 then 'regular' when days >= 1 then 'occasional'
+                else 'dormant' end as segment
+    from recent
+  ),
+  -- What each person did in the last 28 days (beyond opening the app).
+  feats as (
+    select owner_id as user_id, 'levels' as f from public.relationship_events where created_at > now() - interval '28 days'
+    union select user_id, 'coffee' from public.coffee_entries where joining and created_at > now() - interval '28 days'
+    union select user_id, 'tools' from public.tool_sessions where started_at > now() - interval '28 days'
+    union select user_id, 'newsletter' from public.newsletter_views where day > today - 28
+    union select user_id, 'events' from public.cal_rsvps where created_at > now() - interval '28 days'
+    union select guest, 'formals' from public.formal_bookings where created_at > now() - interval '28 days'
+    union select host, 'formals' from public.formal_slots where created_at > now() - interval '28 days'
+  ),
+  ranked as (
+    select days, row_number() over (order by days desc) as rn, count(*) over () as n
+    from recent where days > 0
+  ),
+  -- Last 8 weeks (Monday to Sunday, Oxford time); the last one is this week so far.
+  weeks as (select this_week - 7 * i as w from generate_series(0, 7) i),
+  wact as (
+    select user_id, date_trunc('week', day)::date as w, count(*) as days from activity group by 1, 2
+  ),
+  first_seen as (select user_id, min(day) as first_day from activity group by 1)
+  select jsonb_build_object(
+    'cohort', (select count(*) from public.students where role = 'student'),
+    'joined', (select count(*) from people),
+    'segments', (
+      select jsonb_agg(jsonb_build_object(
+        'key', k.key,
+        'n', (select count(*) from seg where seg.segment = k.key),
+        'days', (select coalesce(sum(days), 0) from seg where seg.segment = k.key),
+        'features', (
+          select coalesce(jsonb_object_agg(f, n), '{}'::jsonb) from (
+            select feats.f, count(distinct feats.user_id) as n
+            from feats join seg on seg.user_id = feats.user_id
+            where seg.segment = k.key group by feats.f
+          ) x
+        )
+      ) order by k.ord)
+      from (values ('core', 1), ('regular', 2), ('occasional', 3), ('dormant', 4)) k(key, ord)
+    ),
+    'histogram', (
+      select jsonb_agg(jsonb_build_object('label', b.label, 'n', (select count(*) from recent r where r.days between b.lo and b.hi)) order by b.lo)
+      from (values ('0', 0, 0), ('1', 1, 1), ('2–3', 2, 3), ('4–7', 4, 7), ('8–14', 8, 14), ('15+', 15, 28)) b(label, lo, hi)
+    ),
+    'concentration', (
+      select jsonb_build_object(
+        'active', coalesce(max(n), 0),
+        'total_days', coalesce(sum(days), 0),
+        'top20_people', coalesce(ceil(max(n) * 0.2), 0),
+        'top20_days', coalesce(sum(days) filter (where rn <= ceil(n * 0.2)), 0)
+      ) from ranked
+    ),
+    'weeks', (
+      select jsonb_agg(jsonb_build_object(
+        'week', wk.w,
+        'active', (select count(*) from wact a where a.w = wk.w),
+        'person_days', (select coalesce(sum(a.days), 0) from wact a where a.w = wk.w),
+        'returning', (
+          select count(*) from wact a
+          where a.w = wk.w and exists (select 1 from wact b where b.user_id = a.user_id and b.w = wk.w - 7)
+        ),
+        'new', (
+          select count(*) from wact a join first_seen f on f.user_id = a.user_id
+          where a.w = wk.w and f.first_day >= wk.w
+        )
+      ) order by wk.w)
+      from weeks wk
+    )
+  ) into result;
+  return result;
+end;
+$$;
+
 -------------------------------------------------------------------------------
 -- Coffee roulette (weekly random coffee matches)
 -------------------------------------------------------------------------------

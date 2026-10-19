@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import { addDays, londonToday } from '../lib/coffee'
 import type { DayActivity, NewsletterStats, ToolStats, UsageData } from '../lib/types'
+import { EngagementPanel } from './EngagementPanel'
 import { Card, Spinner } from './ui'
 
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0)
@@ -48,6 +49,13 @@ export function UsagePanel() {
         Active = opened the app or did something in it (changed a level, posted, RSVP’d). Days are Oxford time.
       </p>
       <DailyBars days={data.daily} pick={(d) => d.active} unit="active" />
+
+      <h3 className="mt-5 mb-0.5 text-sm font-semibold text-oxford-900">🧭 Who uses it: the same few, or many now and then?</h3>
+      <p className="mb-3 text-[11px] text-gray-500">
+        Students only; admins and faculty are left out. Counts by group, never who is in which group. Active = opened
+        the app or did something in it.
+      </p>
+      <EngagementPanel />
 
       <h3 className="mt-5 mb-0.5 text-sm font-semibold text-oxford-900">Time of day</h3>
       <p className="mb-2 text-[11px] text-gray-500">

@@ -16,6 +16,7 @@ import type {
   SessionUser,
   Song,
   Student,
+  EngagementData,
   FormalSlot,
   Tool,
   ToolStats,
@@ -248,6 +249,9 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
           .from('tool_data')
           .upsert({ user_id: s.session?.user.id, tool_id: toolId, data, saved_at: savedAt }, { onConflict: 'user_id,tool_id' }),
       )
+    },
+    async adminEngagement() {
+      return check(await sb.rpc('admin_engagement')) as EngagementData
     },
     async adminToolStats() {
       return check(await sb.rpc('admin_tool_stats')) as ToolStats

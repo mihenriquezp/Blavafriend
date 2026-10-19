@@ -8,6 +8,7 @@ import type {
   CalEvent,
   CoffeeState,
   CustomTag,
+  EngagementData,
   FormalSlot,
   Newsletter,
   Tool,
@@ -574,6 +575,37 @@ export function createDemoApi(): Api {
     async saveMyToolData(toolId, data, savedAt) {
       ;(state.toolData ??= {})[toolId] = { data: clone(data), saved_at: savedAt }
       save()
+    },
+    async adminEngagement(): Promise<EngagementData> {
+      // Fictional numbers for the demo: a core group plus many occasional users.
+      const week0 = addDays(londonToday(), -((new Date(`${londonToday()}T12:00:00Z`).getUTCDay() + 6) % 7))
+      const act = [9, 14, 31, 38, 33, 36, 34, 22]
+      return {
+        cohort: 74,
+        joined: 58,
+        segments: [
+          { key: 'core' as const, n: 11, days: 142, features: { levels: 9, coffee: 8, tools: 7, newsletter: 10, events: 6, formals: 3 } },
+          { key: 'regular' as const, n: 17, days: 73, features: { levels: 10, coffee: 9, tools: 6, newsletter: 12, events: 5, formals: 2 } },
+          { key: 'occasional' as const, n: 19, days: 27, features: { levels: 6, coffee: 4, tools: 3, newsletter: 7, events: 1 } },
+          { key: 'dormant' as const, n: 11, days: 0, features: {} },
+        ],
+        histogram: [
+          { label: '0', n: 11 },
+          { label: '1', n: 12 },
+          { label: '2–3', n: 13 },
+          { label: '4–7', n: 11 },
+          { label: '8–14', n: 8 },
+          { label: '15+', n: 3 },
+        ],
+        concentration: { active: 47, total_days: 242, top20_people: 10, top20_days: 121 },
+        weeks: act.map((a, i) => ({
+          week: addDays(week0, (i - 7) * 7),
+          active: a,
+          person_days: Math.round(a * [1.4, 1.6, 2.6, 2.3, 2.1, 2.2, 2.0, 1.5][i]),
+          returning: i ? Math.min(a, Math.round(act[i - 1] * 0.62)) : 0,
+          new: [9, 8, 15, 6, 3, 2, 2, 1][i],
+        })),
+      }
     },
     async adminToolStats() {
       // Fictional numbers for the demo.

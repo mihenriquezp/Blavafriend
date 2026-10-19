@@ -213,6 +213,23 @@ export type ToolInput = Partial<Pick<Tool, 'title' | 'description' | 'icon' | 'r
   html?: string
 }
 
+/** Admin-only engagement by group (see public.admin_engagement). Students only, admins left out. */
+export type EngagementSegment = 'core' | 'regular' | 'occasional' | 'dormant'
+export type EngagementFeature = 'levels' | 'coffee' | 'tools' | 'newsletter' | 'events' | 'formals'
+export interface EngagementData {
+  /** Students in the cohort / with an account (admins left out). */
+  cohort: number
+  joined: number
+  /** By active days in the last 28: core 8+, regular 3–7, occasional 1–2, dormant 0. */
+  segments: { key: EngagementSegment; n: number; days: number; features: Partial<Record<EngagementFeature, number>> }[]
+  /** People by active days in the last 28. */
+  histogram: { label: string; n: number }[]
+  /** Last 28 days: people active, their active days, and how many of those days the top 20% account for. */
+  concentration: { active: number; total_days: number; top20_people: number; top20_days: number }
+  /** Last 8 weeks (Monday start); the last is this week so far. */
+  weeks: { week: string; active: number; person_days: number; returning: number; new: number }[]
+}
+
 /** Seats offered at a college formal (see public.formal_board). */
 export interface FormalSlot {
   id: string
@@ -333,6 +350,7 @@ export interface Api {
   getMyToolData(toolId: string): Promise<{ data: Record<string, string>; saved_at: string } | null>
   saveMyToolData(toolId: string, data: Record<string, string>, savedAt: string): Promise<void>
   adminToolStats(): Promise<ToolStats>
+  adminEngagement(): Promise<EngagementData>
 
   /** Upcoming formals with seats left (who is going only on your own or booked ones). */
   formalBoard(): Promise<FormalSlot[]>
