@@ -10,6 +10,9 @@ import {
   COFFEE_TOUR_KEY,
   COFFEE_TOUR_UNTIL,
   CoffeeHowTo,
+  FORMALS_TOUR_KEY,
+  FORMALS_TOUR_UNTIL,
+  FormalsHowTo,
   MentorsHowTo,
   NewsletterHowTo,
   WHATS_NEW_KEY,
@@ -79,9 +82,11 @@ export function BirthdayPopup() {
   const [showInstall] = useState(() => londonToday() === INSTALL_DAY && !isInstalled() && !seen(installKey))
   const [showNew] = useState(() => londonToday() <= WHATS_NEW_UNTIL && !seen(WHATS_NEW_KEY))
   const [showCoffeeTour] = useState(() => londonToday() <= COFFEE_TOUR_UNTIL && !seen(COFFEE_TOUR_KEY))
+  const [showFormals] = useState(() => londonToday() <= FORMALS_TOUR_UNTIL && !seen(FORMALS_TOUR_KEY))
   // Birthdays and coffee first; the how-tos and the install guide each get their own screen after them.
   const pages = [
     ...(showBirthdays || coffee ? (['news'] as const) : []),
+    ...(showFormals ? (['formals'] as const) : []),
     ...(showNew ? (['mentors', 'newsletter'] as const) : []),
     ...(showCoffeeTour ? (['coffee-howto'] as const) : []),
     ...(showInstall || (showCoffeeTour && !isInstalled()) ? (['install'] as const) : []),
@@ -98,6 +103,7 @@ export function BirthdayPopup() {
       if (showInstall) localStorage.setItem(installKey, '1')
       if (showNew) localStorage.setItem(WHATS_NEW_KEY, '1')
       if (showCoffeeTour) localStorage.setItem(COFFEE_TOUR_KEY, '1')
+      if (showFormals) localStorage.setItem(FORMALS_TOUR_KEY, '1')
     } catch {
       /* ignore */
     }
@@ -241,6 +247,7 @@ export function BirthdayPopup() {
         {page === 'mentors' && <MentorsHowTo />}
         {page === 'newsletter' && <NewsletterHowTo />}
         {page === 'coffee-howto' && <CoffeeHowTo />}
+        {page === 'formals' && <FormalsHowTo onOpen={close} />}
 
         {pages.length > 1 && (
           <div className="mt-4 flex justify-center gap-1.5" aria-hidden>
