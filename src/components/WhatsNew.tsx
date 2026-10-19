@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
 // One-off "how it works" for the mentor picker and the newsletter checklist,
 // shown once per device to everyone who opens the app before it ends.
@@ -8,6 +9,9 @@ export const WHATS_NEW_UNTIL = '2026-10-31'
 // the app to your phone (that screen only if it isn't installed yet).
 export const COFFEE_TOUR_KEY = 'blavafriend-whatsnew-coffee-install'
 export const COFFEE_TOUR_UNTIL = '2026-11-08'
+// Formals: how to book or offer a seat at a college formal.
+export const FORMALS_TOUR_KEY = 'blavafriend-whatsnew-formals'
+export const FORMALS_TOUR_UNTIL = '2026-11-22'
 
 function Steps({ items }: { items: [string, ReactNode][] }) {
   return (
@@ -220,6 +224,106 @@ export function CoffeeHowTo() {
           ['🔒', <>Only you see your match. Everyone who signs up gets one.</>],
         ]}
       />
+    </div>
+  )
+}
+
+/** A tiny mock of booking a formal: a week of days, then a time slot. */
+function FormalsMock() {
+  const days: [string, number, 'free' | 'sel' | 'none'][] = [
+    ['M', 19, 'none'],
+    ['T', 20, 'free'],
+    ['W', 21, 'sel'],
+    ['T', 22, 'free'],
+    ['F', 23, 'none'],
+  ]
+  return (
+    <div className="space-y-2 rounded-2xl bg-gradient-to-br from-oxford-50 to-amber-50 p-3" aria-hidden>
+      <div className="flex gap-1.5 text-[11px] font-semibold">
+        <span className="rounded-full bg-oxford-900 px-2.5 py-1 text-white">Magdalen</span>
+        <span className="rounded-full bg-white px-2.5 py-1 text-oxford-900">Christ Church</span>
+        <span className="rounded-full bg-white px-2.5 py-1 text-oxford-900">Oriel</span>
+      </div>
+      <div className="grid grid-cols-5 gap-1.5">
+        {days.map(([d, n, s]) => (
+          <div
+            key={n}
+            className={`rounded-lg py-1 text-center text-[11px] ${
+              s === 'sel'
+                ? 'bg-oxford-900 font-bold text-white'
+                : s === 'free'
+                  ? 'bg-white font-bold text-oxford-900 ring-1 ring-oxford-200'
+                  : 'text-gray-400'
+            }`}
+          >
+            <div className="text-[9px] opacity-70">{d}</div>
+            {n}
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-2.5 rounded-xl bg-white p-2.5 shadow-sm ring-1 ring-gray-200">
+        <span className="rounded-lg bg-oxford-900 px-2 py-1 text-[12px] font-bold text-white">19:15</span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-bold text-oxford-900">Magdalen · £25</div>
+          <div className="truncate text-[11px] text-emerald-700">1 of 2 seats left</div>
+        </div>
+        <span className="rounded-lg bg-oxford-900 px-2.5 py-1 text-[11px] font-semibold text-white">Book</span>
+      </div>
+    </div>
+  )
+}
+
+export function FormalsHowTo({ onOpen }: { onOpen?: () => void }) {
+  return (
+    <div>
+      <div className="mb-4 text-center">
+        <div className="text-5xl" aria-hidden>
+          🎓
+        </div>
+        <h2 id="bday-title" className="mt-2 font-display text-2xl font-bold text-oxford-900">
+          New: Formals
+        </h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Go to another college’s formal, or fill your spare seats. In <b>Coffee +</b>:
+        </p>
+      </div>
+      <FormalsMock />
+      <Steps
+        items={[
+          [
+            '🏛️',
+            <>
+              Pick a <b>college</b>, then a <b>day</b> and a <b>time</b>, like booking an appointment.
+            </>,
+          ],
+          [
+            '🎟️',
+            <>
+              Tap <b>Book</b> to save your seat, then message the host.
+            </>,
+          ],
+          [
+            '💷',
+            <>
+              You <b>pay the host directly</b>. No money goes through the app.
+            </>,
+          ],
+          [
+            '➕',
+            <>
+              Spare seats at your formal? <b>Offer</b> them: day, time, price and how many.
+            </>,
+          ],
+          ['🔒', <>Only the host and that formal’s guests see who’s going.</>],
+        ]}
+      />
+      <Link
+        to="/resources?tab=formals"
+        onClick={onOpen}
+        className="mt-4 block text-center text-sm font-semibold text-oxford-500 hover:underline"
+      >
+        Open Formals →
+      </Link>
     </div>
   )
 }
