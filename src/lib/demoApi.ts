@@ -227,6 +227,7 @@ export function createDemoApi(): Api {
         day: addDays(today, d),
         time,
         minutes,
+        languages: i === 1 ? ['English', 'Spanish'] : i === 4 ? ['English', 'French'] : ['English'],
         capacity,
         place,
         notes: null,

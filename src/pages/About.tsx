@@ -66,7 +66,7 @@ export default function About() {
           </li>
           <li>Everything except your name is optional, and you can edit or remove it at any time from your profile.</li>
           <li>
-            In Coffee +, the events, notices, formal seats and study sessions you post, and the events you say you’re
+            In Coffee +, the events, formal seats and study sessions you post, and the events you say you’re
             going to, are visible to classmates with your name. Who books a formal or joins a study session is seen
             only by the host and the others in it. The app never handles money. You can delete your posts at any time.
           </li>

@@ -1720,6 +1720,10 @@ create table if not exists public.study_sessions (
   created_at timestamptz not null default now()
 );
 create index if not exists study_sessions_day on public.study_sessions (day);
+-- Languages the session can be given in.
+alter table public.study_sessions
+  add column if not exists languages text[] not null default '{English}'
+  check (cardinality(languages) between 1 and 6);
 
 create table if not exists public.study_joins (
   session_id uuid not null references public.study_sessions (id) on delete cascade,
@@ -1791,6 +1795,7 @@ as $$
     'day', s.day,
     'time', to_char(s.at, 'HH24:MI'),
     'minutes', s.minutes,
+    'languages', s.languages,
     'capacity', s.capacity,
     'place', s.place,
     'notes', s.notes,

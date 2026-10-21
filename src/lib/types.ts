@@ -244,6 +244,8 @@ export interface StudySession {
   day: string
   time: string
   minutes: number
+  /** Languages it can be given in. */
+  languages: string[]
   /** Places: students for a class or group, helpers for a 'need'. */
   capacity: number
   place: string | null
@@ -256,7 +258,7 @@ export interface StudySession {
 }
 export type StudyInput = Pick<
   StudySession,
-  'kind' | 'subject' | 'topic' | 'day' | 'time' | 'minutes' | 'capacity' | 'place' | 'notes'
+  'kind' | 'subject' | 'topic' | 'day' | 'time' | 'minutes' | 'languages' | 'capacity' | 'place' | 'notes'
 >
 
 /** Seats offered at a college formal (see public.formal_board). */
