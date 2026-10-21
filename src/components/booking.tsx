@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { addDays, fmtDay, londonToday } from '../lib/coffee'
 import { callName } from '../lib/names'
@@ -32,7 +32,8 @@ export function MonthCalendar({
   /** Days with something on, and how many places are left (0 = full). */
   days: Map<string, number>
   selected: string | null
-  onSelect: (d: string) => void
+  /** Tapping the selected day again clears it (null = show every day). */
+  onSelect: (d: string | null) => void
   unit?: string
 }) {
   const today = londonToday()
@@ -55,18 +56,18 @@ export function MonthCalendar({
 
   return (
     <div className="mt-3">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-1 flex items-center justify-between">
         <button
-          className="grid h-9 w-9 place-items-center rounded-full text-oxford-900 hover:bg-oxford-50 disabled:opacity-25"
+          className="grid h-8 w-8 place-items-center rounded-full text-oxford-900 hover:bg-oxford-50 disabled:opacity-25"
           disabled={i <= 0}
           onClick={() => setMonth(months[i - 1])}
           aria-label="Previous month"
         >
           ‹
         </button>
-        <div className="font-semibold text-oxford-900">{fmtDay(first, { month: 'long', year: 'numeric' })}</div>
+        <div className="text-sm font-semibold text-oxford-900">{fmtDay(first, { month: 'long', year: 'numeric' })}</div>
         <button
-          className="grid h-9 w-9 place-items-center rounded-full text-oxford-900 hover:bg-oxford-50 disabled:opacity-25"
+          className="grid h-8 w-8 place-items-center rounded-full text-oxford-900 hover:bg-oxford-50 disabled:opacity-25"
           disabled={i >= months.length - 1}
           onClick={() => setMonth(months[i + 1])}
           aria-label="Next month"
@@ -89,10 +90,10 @@ export function MonthCalendar({
             <button
               key={d}
               disabled={!has}
-              onClick={() => onSelect(d)}
+              onClick={() => onSelect(d === selected ? null : d)}
               aria-pressed={sel}
               aria-label={`${fmtDay(d, { weekday: 'long', day: 'numeric', month: 'long' })}${has ? `, ${seats ? plural(seats, unit) : 'full'}` : ''}`}
-              className={`relative flex aspect-square flex-col items-center justify-center rounded-xl text-sm ${
+              className={`relative flex h-10 flex-col items-center justify-center rounded-lg text-sm ${
                 sel
                   ? 'bg-oxford-900 font-bold text-white'
                   : has
@@ -166,5 +167,54 @@ export function Guests({
       </div>
       <span className="truncate">{people.map((p) => (p.user_id === user?.id ? 'you' : callName(p))).join(', ')}</span>
     </div>
+  )
+}
+
+/**
+ * The times on offer, grouped by day: every upcoming day, or just the one picked
+ * on the calendar (with a way back to all of them).
+ */
+export function DayGroups<T extends { id: string; day: string }>({
+  items,
+  day,
+  onShowAll,
+  render,
+}: {
+  items: T[]
+  day: string | null
+  onShowAll: () => void
+  render: (item: T) => ReactNode
+}) {
+  const long = (d: string) => fmtDay(d, { weekday: 'long', day: 'numeric', month: 'long' })
+  const shown = day ? items.filter((i) => i.day === day) : items
+  const groups: [string, T[]][] = []
+  for (const i of shown) {
+    const last = groups[groups.length - 1]
+    if (last && last[0] === i.day) last[1].push(i)
+    else groups.push([i.day, [i]])
+  }
+  return (
+    <>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <Step n={3} title="Choose a time" />
+        {day ? (
+          <span className="text-sm text-gray-600">
+            {long(day)} ·{' '}
+            <button className="font-semibold text-oxford-500 underline" onClick={onShowAll}>
+              Show all days
+            </button>
+          </span>
+        ) : (
+          <span className="text-xs text-gray-500">All upcoming days · tap a day to filter</span>
+        )}
+      </div>
+      {groups.map(([d, list]) => (
+        <section key={d} className="mt-4">
+          {!day && <h4 className="mb-1.5 text-xs font-semibold tracking-wide text-gray-500 uppercase">{long(d)}</h4>}
+          <ul className="space-y-2">{list.map(render)}</ul>
+        </section>
+      ))}
+      {!groups.length && <p className="mt-3 text-sm text-gray-500">Nothing on that day.</p>}
+    </>
   )
 }

@@ -6,7 +6,7 @@ import { callName } from '../lib/names'
 import { COLLEGES } from '../lib/options'
 import { useStore } from '../lib/store'
 import type { FormalInput, FormalSlot, Student } from '../lib/types'
-import { Guests, HostContact, MonthCalendar, Row, Step, plural } from './booking'
+import { DayGroups, Guests, HostContact, MonthCalendar, Row, Step, plural } from './booking'
 import { Avatar, Card, Field, Spinner, btnPrimary, btnSecondary, inputCls } from './ui'
 
 type View = 'find' | 'offer' | 'mine'
@@ -126,9 +126,8 @@ function Find({
     for (const s of inCollege) m.set(s.day, (m.get(s.day) ?? 0) + seatsLeft(s))
     return m
   }, [inCollege])
-  const firstFree = [...days].find(([, n]) => n > 0)?.[0] ?? [...days.keys()][0] ?? null
   const [day, setDay] = useState<string | null>(null)
-  const shownDay = day && days.has(day) ? day : firstFree
+  const shownDay = day && days.has(day) ? day : null
   const [booking, setBooking] = useState<FormalSlot | null>(null)
 
   if (!open.length)
@@ -148,53 +147,50 @@ function Find({
     )
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <Step n={1} title="Choose a college" />
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {[[ALL, colleges.reduce((n, [, c]) => n + c, 0)] as const, ...colleges].map(([c, n]) => (
-            <button
-              key={c || 'all'}
-              onClick={() => {
-                setCollege(c)
-                setDay(null)
-              }}
-              aria-pressed={college === c}
-              className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
-                college === c
-                  ? 'bg-oxford-900 text-white'
-                  : 'bg-white text-oxford-900 ring-1 ring-gray-200 hover:ring-oxford-300'
-              }`}
-            >
-              {c || 'All colleges'}{' '}
-              <span className={`text-xs ${college === c ? 'text-white/70' : n ? 'text-emerald-700' : 'text-gray-400'}`}>
-                {n ? plural(n, 'seat') : 'full'}
-              </span>
-            </button>
-          ))}
-        </div>
-      </Card>
-
-      <Card>
-        <Step n={2} title="Pick a day" />
-        <MonthCalendar days={days} selected={shownDay} onSelect={setDay} />
-      </Card>
-
-      {shownDay && (
+    <div className="grid gap-4 md:grid-cols-[300px_minmax(0,1fr)] md:items-start">
+      <div className="space-y-4">
         <Card>
-          <Step
-            n={3}
-            title={`Choose a time · ${fmtDay(shownDay, { weekday: 'long', day: 'numeric', month: 'long' })}`}
-          />
-          <ul className="mt-3 space-y-2">
-            {inCollege
-              .filter((s) => s.day === shownDay)
-              .map((s) => (
-                <SlotRow key={s.id} slot={s} host={byUser(s.host)} onBook={() => setBooking(s)} />
-              ))}
-          </ul>
+          <Step n={1} title="Choose a college" />
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {[[ALL, colleges.reduce((n, [, c]) => n + c, 0)] as const, ...colleges].map(([c, n]) => (
+              <button
+                key={c || 'all'}
+                onClick={() => {
+                  setCollege(c)
+                  setDay(null)
+                }}
+                aria-pressed={college === c}
+                className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
+                  college === c
+                    ? 'bg-oxford-900 text-white'
+                    : 'bg-white text-oxford-900 ring-1 ring-gray-200 hover:ring-oxford-300'
+                }`}
+              >
+                {c || 'All colleges'}{' '}
+                <span
+                  className={`text-xs ${college === c ? 'text-white/70' : n ? 'text-emerald-700' : 'text-gray-400'}`}
+                >
+                  {n ? plural(n, 'seat') : 'full'}
+                </span>
+              </button>
+            ))}
+          </div>
         </Card>
-      )}
+
+        <Card>
+          <Step n={2} title="Pick a day (optional)" />
+          <MonthCalendar days={days} selected={shownDay} onSelect={setDay} />
+        </Card>
+      </div>
+
+      <Card>
+        <DayGroups
+          items={inCollege}
+          day={shownDay}
+          onShowAll={() => setDay(null)}
+          render={(s) => <SlotRow key={s.id} slot={s} host={byUser(s.host)} onBook={() => setBooking(s)} />}
+        />
+      </Card>
 
       {booking && (
         <BookDialog slot={booking} host={byUser(booking.host)} onClose={() => setBooking(null)} onBooked={reload} />

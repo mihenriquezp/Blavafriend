@@ -6,7 +6,7 @@ import { callName } from '../lib/names'
 import { LANGUAGES, STUDY_SUBJECTS } from '../lib/options'
 import { useStore } from '../lib/store'
 import type { Student, StudyInput, StudyKind, StudySession } from '../lib/types'
-import { Guests, HostContact, MonthCalendar, Row, Step, plural } from './booking'
+import { DayGroups, Guests, HostContact, MonthCalendar, Row, Step, plural } from './booking'
 import { Avatar, Card, Field, Spinner, TagPicker, btnPrimary, btnSecondary, inputCls } from './ui'
 
 type View = 'find' | 'post' | 'mine'
@@ -211,9 +211,8 @@ function Find({
     for (const s of inSubject) m.set(s.day, (m.get(s.day) ?? 0) + allLeft(s))
     return m
   }, [inSubject])
-  const firstFree = [...days].find(([, n]) => n > 0)?.[0] ?? [...days.keys()][0] ?? null
   const [day, setDay] = useState<string | null>(null)
-  const shownDay = day && days.has(day) ? day : firstFree
+  const shownDay = day && days.has(day) ? day : null
   const [joining, setJoining] = useState<{ s: StudySession; help: boolean } | null>(null)
 
   if (!open.length)
@@ -284,56 +283,53 @@ function Find({
       {!ofKind.length ? (
         <Card className="text-center text-sm text-gray-500">Nothing of this kind right now.</Card>
       ) : (
-        <>
-          <Card>
-            <Step n={1} title="Choose a subject" />
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {[[ALL, subjects.reduce((n, [, c]) => n + c, 0)] as const, ...subjects].map(([c, n]) => (
-                <button
-                  key={c || 'all'}
-                  onClick={() => {
-                    setSubject(c)
-                    setDay(null)
-                  }}
-                  aria-pressed={subject === c}
-                  className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
-                    subject === c
-                      ? 'bg-oxford-900 text-white'
-                      : 'bg-white text-oxford-900 ring-1 ring-gray-200 hover:ring-oxford-300'
-                  }`}
-                >
-                  {c || 'All subjects'}{' '}
-                  <span
-                    className={`text-xs ${subject === c ? 'text-white/70' : n ? 'text-emerald-700' : 'text-gray-400'}`}
-                  >
-                    {n ? plural(n, 'place') : 'full'}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </Card>
-
-          <Card>
-            <Step n={2} title="Pick a day" />
-            <MonthCalendar days={days} selected={shownDay} onSelect={setDay} unit="place" />
-          </Card>
-
-          {shownDay && (
+        <div className="grid gap-4 md:grid-cols-[300px_minmax(0,1fr)] md:items-start">
+          <div className="space-y-4">
             <Card>
-              <Step
-                n={3}
-                title={`Choose a time · ${fmtDay(shownDay, { weekday: 'long', day: 'numeric', month: 'long' })}`}
-              />
-              <ul className="mt-3 space-y-2">
-                {inSubject
-                  .filter((s) => s.day === shownDay)
-                  .map((s) => (
-                    <SessionRow key={s.id} s={s} host={byUser(s.host)} onJoin={(help) => setJoining({ s, help })} />
-                  ))}
-              </ul>
+              <Step n={1} title="Choose a subject" />
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {[[ALL, subjects.reduce((n, [, c]) => n + c, 0)] as const, ...subjects].map(([c, n]) => (
+                  <button
+                    key={c || 'all'}
+                    onClick={() => {
+                      setSubject(c)
+                      setDay(null)
+                    }}
+                    aria-pressed={subject === c}
+                    className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
+                      subject === c
+                        ? 'bg-oxford-900 text-white'
+                        : 'bg-white text-oxford-900 ring-1 ring-gray-200 hover:ring-oxford-300'
+                    }`}
+                  >
+                    {c || 'All subjects'}{' '}
+                    <span
+                      className={`text-xs ${subject === c ? 'text-white/70' : n ? 'text-emerald-700' : 'text-gray-400'}`}
+                    >
+                      {n ? plural(n, 'place') : 'full'}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </Card>
-          )}
-        </>
+
+            <Card>
+              <Step n={2} title="Pick a day (optional)" />
+              <MonthCalendar days={days} selected={shownDay} onSelect={setDay} unit="place" />
+            </Card>
+          </div>
+
+          <Card>
+            <DayGroups
+              items={inSubject}
+              day={shownDay}
+              onShowAll={() => setDay(null)}
+              render={(s) => (
+                <SessionRow key={s.id} s={s} host={byUser(s.host)} onJoin={(help) => setJoining({ s, help })} />
+              )}
+            />
+          </Card>
+        </div>
       )}
 
       <p className="text-center text-sm text-gray-500">
