@@ -11,6 +11,7 @@ import type {
   EngagementData,
   FormalSlot,
   Newsletter,
+  StudySession,
   Tool,
   Notice,
   Relationship,
@@ -41,7 +42,9 @@ interface DemoState {
   newsletterChecks?: { newsletter_id: string; item_id: string }[]
   coffee?: { auto: boolean; entries: Record<string, boolean>; rounds: Record<string, string[][]> }
   formals?: { slots: DemoFormal[]; bookings: { slot_id: string; guest: string }[] }
+  study?: { sessions: DemoStudy[]; joins: { session_id: string; member: string }[] }
 }
+type DemoStudy = Omit<StudySession, 'taken' | 'mine' | 'joined' | 'members'>
 type DemoFormal = Omit<FormalSlot, 'taken' | 'mine' | 'booked' | 'guests'>
 
 /** Stable pseudo-random number for a string (demo only). */
@@ -203,6 +206,38 @@ export function createDemoApi(): Api {
   }
 
   const coffee = () => (state.coffee ??= { auto: false, entries: {}, rounds: {} })
+  // A few fictional study sessions by fictional classmates.
+  const study = () =>
+    (state.study ??= (() => {
+      const today = londonToday()
+      const hosts = state.students.filter((s) => s.user_id?.startsWith('demo-u-'))
+      const rows: [number, StudySession['kind'], string, string, number, string, number, number, string][] = [
+        [2, 'teach', 'Economics', 'Problem set 3: elasticities', 1, '18:00', 90, 4, 'BSG seminar room 2'],
+        [5, 'study', 'Foundations', 'Reading group: Rawls', 1, '16:00', 60, 3, 'Library café'],
+        [1, 'need', 'Evidence', 'Regression output, I’m lost', 2, '12:30', 45, 1, 'Online (Teams)'],
+        [3, 'teach', 'Economics', 'Game theory basics', 4, '17:30', 60, 6, 'BSG ground floor'],
+        [6, 'study', 'Law', 'Case notes before the seminar', 6, '10:00', 120, 4, 'Radcliffe Camera'],
+      ]
+      const sessions: DemoStudy[] = rows.map(([h, kind, subject, topic, d, time, minutes, capacity, place], i) => ({
+        id: `study-${i}`,
+        host: hosts[h % hosts.length].user_id!,
+        kind,
+        subject,
+        topic,
+        day: addDays(today, d),
+        time,
+        minutes,
+        capacity,
+        place,
+        notes: null,
+      }))
+      const joins = [
+        { session_id: 'study-0', member: hosts[0].user_id! },
+        { session_id: 'study-0', member: hosts[4].user_id! },
+        { session_id: 'study-1', member: hosts[7].user_id! },
+      ]
+      return { sessions, joins }
+    })())
   // A few fictional formals offered by fictional classmates.
   const formals = () =>
     (state.formals ??= (() => {
@@ -683,6 +718,57 @@ export function createDemoApi(): Api {
       const who = guest ?? DEMO_USER.id
       if (who !== DEMO_USER.id && !f.slots.some((s) => s.id === id && s.host === DEMO_USER.id)) throw new Error('Not allowed')
       f.bookings = f.bookings.filter((b) => !(b.slot_id === id && b.guest === who))
+      save()
+    },
+
+    async studyBoard() {
+      const { sessions, joins } = study()
+      const now = new Date()
+      const me = DEMO_USER.id
+      return sessions
+        .filter((s) => new Date(`${s.day}T${s.time}:00`) > now)
+        .sort((a, b) => (a.day + a.time).localeCompare(b.day + b.time))
+        .map((s) => {
+          const members = joins.filter((j) => j.session_id === s.id).map((j) => j.member)
+          const mine = s.host === me
+          const joined = members.includes(me)
+          return clone({ ...s, taken: members.length, mine, joined, members: mine || joined ? members : [] })
+        })
+    },
+    async saveStudy(input, id) {
+      const st = study()
+      if (id) {
+        const s = st.sessions.find((x) => x.id === id && x.host === DEMO_USER.id)
+        if (!s) throw new Error('Not allowed')
+        if (input.capacity < st.joins.filter((j) => j.session_id === id).length)
+          throw new Error('Some people have already joined: you can’t offer fewer places than that.')
+        Object.assign(s, input)
+      } else st.sessions.push({ ...input, id: crypto.randomUUID(), host: DEMO_USER.id })
+      save()
+    },
+    async deleteStudy(id) {
+      const st = study()
+      st.sessions = st.sessions.filter((s) => !(s.id === id && s.host === DEMO_USER.id))
+      st.joins = st.joins.filter((j) => st.sessions.some((s) => s.id === j.session_id))
+      save()
+    },
+    async studyJoin(id) {
+      const st = study()
+      const s = st.sessions.find((x) => x.id === id)
+      if (!s) throw new Error('This session is no longer on.')
+      if (s.host === DEMO_USER.id) throw new Error('This is your own session.')
+      const members = st.joins.filter((j) => j.session_id === id)
+      if (members.some((j) => j.member === DEMO_USER.id)) return
+      if (members.length >= s.capacity) throw new Error('Sorry, the last place was just taken.')
+      st.joins.push({ session_id: id, member: DEMO_USER.id })
+      save()
+    },
+    async studyLeave(id, member) {
+      const st = study()
+      const who = member ?? DEMO_USER.id
+      if (who !== DEMO_USER.id && !st.sessions.some((s) => s.id === id && s.host === DEMO_USER.id))
+        throw new Error('Not allowed')
+      st.joins = st.joins.filter((j) => !(j.session_id === id && j.member === who))
       save()
     },
 

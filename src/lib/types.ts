@@ -215,7 +215,7 @@ export type ToolInput = Partial<Pick<Tool, 'title' | 'description' | 'icon' | 'r
 
 /** Admin-only engagement by group (see public.admin_engagement). Students only, admins left out. */
 export type EngagementSegment = 'core' | 'regular' | 'occasional' | 'dormant'
-export type EngagementFeature = 'levels' | 'coffee' | 'tools' | 'newsletter' | 'events' | 'formals'
+export type EngagementFeature = 'levels' | 'coffee' | 'tools' | 'newsletter' | 'events' | 'formals' | 'study'
 export interface EngagementData {
   /** Students in the cohort / with an account (admins left out). */
   cohort: number
@@ -229,6 +229,35 @@ export interface EngagementData {
   /** Last 8 weeks (Monday start); the last is this week so far. */
   weeks: { week: string; active: number; person_days: number; returning: number; new: number }[]
 }
+
+/** A study session between classmates (see public.study_board). */
+export type StudyKind = 'teach' | 'need' | 'study'
+export interface StudySession {
+  id: string
+  /** The host's user id (students.user_id). */
+  host: string
+  /** teach = I give a class · need = I'm looking for a tutor · study = study together. */
+  kind: StudyKind
+  subject: string
+  topic: string | null
+  /** YYYY-MM-DD and HH:MM, Oxford time. */
+  day: string
+  time: string
+  minutes: number
+  /** Places: students for a class or group, helpers for a 'need'. */
+  capacity: number
+  place: string | null
+  notes: string | null
+  taken: number
+  mine: boolean
+  joined: boolean
+  /** Who joined (user ids): only for the host and the people in it. */
+  members: string[]
+}
+export type StudyInput = Pick<
+  StudySession,
+  'kind' | 'subject' | 'topic' | 'day' | 'time' | 'minutes' | 'capacity' | 'place' | 'notes'
+>
 
 /** Seats offered at a college formal (see public.formal_board). */
 export interface FormalSlot {
@@ -269,6 +298,7 @@ export interface UsageData {
   resources: { events: number; upcoming_events: number; rsvps: number; songs: number; notices: number }
   coffee?: { auto: number; next: number; last: { round: string; people: number; groups: number } | null }
   formals?: { upcoming: number; seats: number; booked: number; total_bookings: number }
+  study?: { upcoming: number; joins: number; total_joins: number }
 }
 
 /** The signed-in person's view of the weekly coffee roulette (see public.coffee_state). */
@@ -359,6 +389,14 @@ export interface Api {
   formalBook(id: string): Promise<void>
   /** Cancel my seat, or as the host take a guest (user id) off my formal. */
   formalCancel(id: string, guest?: string): Promise<void>
+
+  /** Upcoming study sessions with places left (who joined only on your own or joined ones). */
+  studyBoard(): Promise<StudySession[]>
+  saveStudy(input: StudyInput, id?: string): Promise<void>
+  deleteStudy(id: string): Promise<void>
+  studyJoin(id: string): Promise<void>
+  /** Leave a session, or as the host take someone (user id) off it. */
+  studyLeave(id: string, member?: string): Promise<void>
 
   coffeeState(): Promise<CoffeeState>
   coffeeJoin(join: boolean): Promise<CoffeeState>

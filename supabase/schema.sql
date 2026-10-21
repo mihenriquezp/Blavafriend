@@ -711,6 +711,14 @@ begin
       ),
       'total_bookings', (select count(*) from public.formal_bookings)
     ),
+    'study', jsonb_build_object(
+      'upcoming', (select count(*) from public.study_sessions where day >= public.london_today()),
+      'joins', (
+        select count(*) from public.study_joins j
+        join public.study_sessions x on x.id = j.session_id where x.day >= public.london_today()
+      ),
+      'total_joins', (select count(*) from public.study_joins)
+    ),
     'coffee', jsonb_build_object(
       'auto', (select count(*) from public.coffee_auto),
       'next', (select count(*) from public.coffee_participants(public.coffee_open_round())),
@@ -819,6 +827,8 @@ begin
     union select user_id, 'events' from public.cal_rsvps where created_at > now() - interval '28 days'
     union select guest, 'formals' from public.formal_bookings where created_at > now() - interval '28 days'
     union select host, 'formals' from public.formal_slots where created_at > now() - interval '28 days'
+    union select member, 'study' from public.study_joins where created_at > now() - interval '28 days'
+    union select host, 'study' from public.study_sessions where created_at > now() - interval '28 days'
   ),
   ranked as (
     select days, row_number() over (order by days desc) as rn, count(*) over () as n
@@ -1680,6 +1690,161 @@ begin
     delete from public.formal_bookings where slot_id = p_slot and guest = auth.uid();
   elsif exists (select 1 from public.formal_slots where id = p_slot and host = auth.uid()) then
     delete from public.formal_bookings where slot_id = p_slot and guest = p_guest;
+  else
+    raise exception 'Not allowed';
+  end if;
+end;
+$$;
+
+-------------------------------------------------------------------------------
+-- Study: classes, help requests and study groups between classmates
+-------------------------------------------------------------------------------
+-- Someone posts a session (subject, topic, day, time, length, places) of one
+-- kind: 'teach' (I'll give a class), 'need' (I'm looking for a tutor; places =
+-- how many helpers) or 'study' (study together). Others join it like an
+-- appointment. Everyone sees what is on and how many places are left; only the
+-- host and the people in it see who joined.
+
+create table if not exists public.study_sessions (
+  id uuid primary key default gen_random_uuid(),
+  host uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  kind text not null check (kind in ('teach', 'need', 'study')),
+  subject text not null check (char_length(subject) between 1 and 40),
+  topic text check (char_length(topic) <= 120),
+  day date not null,
+  at time not null,
+  minutes int not null default 60 check (minutes between 15 and 240),
+  capacity int not null check (capacity between 1 and 20),
+  place text check (char_length(place) <= 120),
+  notes text check (char_length(notes) <= 300),
+  created_at timestamptz not null default now()
+);
+create index if not exists study_sessions_day on public.study_sessions (day);
+
+create table if not exists public.study_joins (
+  session_id uuid not null references public.study_sessions (id) on delete cascade,
+  member uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (session_id, member)
+);
+
+alter table public.study_sessions enable row level security;
+alter table public.study_joins enable row level security;
+
+drop policy if exists "members read study sessions" on public.study_sessions;
+create policy "members read study sessions" on public.study_sessions
+  for select using (public.is_member());
+
+drop policy if exists "hosts add study sessions" on public.study_sessions;
+create policy "hosts add study sessions" on public.study_sessions
+  for insert with check (host = auth.uid() and public.is_member() and day >= public.london_today());
+
+drop policy if exists "hosts edit study sessions" on public.study_sessions;
+create policy "hosts edit study sessions" on public.study_sessions
+  for update using (host = auth.uid()) with check (host = auth.uid() and day >= public.london_today());
+
+drop policy if exists "hosts or admins delete study sessions" on public.study_sessions;
+create policy "hosts or admins delete study sessions" on public.study_sessions
+  for delete using (host = auth.uid() or public.is_admin());
+
+-- Joins: written only through study_join / study_leave.
+drop policy if exists "member or host reads join" on public.study_joins;
+create policy "member or host reads join" on public.study_joins
+  for select using (
+    member = auth.uid()
+    or exists (select 1 from public.study_sessions s where s.id = session_id and s.host = auth.uid())
+  );
+
+create or replace function public.study_sessions_guard()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if new.capacity < (select count(*) from public.study_joins where session_id = new.id) then
+    raise exception 'Some people have already joined: you can''t offer fewer places than that.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists study_sessions_guard on public.study_sessions;
+create trigger study_sessions_guard before update on public.study_sessions
+  for each row execute function public.study_sessions_guard();
+
+create or replace function public.study_board()
+returns jsonb
+language sql stable security definer set search_path = public
+as $$
+  with s as (
+    select x.*,
+           (select count(*) from public.study_joins j where j.session_id = x.id) as taken,
+           exists (select 1 from public.study_joins j where j.session_id = x.id and j.member = auth.uid()) as joined
+    from public.study_sessions x
+    where (x.day + x.at) at time zone 'Europe/London' > now()
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', s.id,
+    'host', s.host,
+    'kind', s.kind,
+    'subject', s.subject,
+    'topic', s.topic,
+    'day', s.day,
+    'time', to_char(s.at, 'HH24:MI'),
+    'minutes', s.minutes,
+    'capacity', s.capacity,
+    'place', s.place,
+    'notes', s.notes,
+    'taken', s.taken,
+    'mine', s.host = auth.uid(),
+    'joined', s.joined,
+    'members', case when s.host = auth.uid() or s.joined then coalesce((
+      select jsonb_agg(j.member order by j.created_at) from public.study_joins j where j.session_id = s.id
+    ), '[]'::jsonb) else '[]'::jsonb end
+  ) order by s.day, s.at), '[]'::jsonb)
+  from s
+  where public.is_member();
+$$;
+
+create or replace function public.study_join(p_session uuid)
+returns void
+language plpgsql volatile security definer set search_path = public
+as $$
+declare
+  x public.study_sessions;
+begin
+  if not public.is_member() then
+    raise exception 'Not allowed';
+  end if;
+  select * into x from public.study_sessions where id = p_session for update;
+  if not found then
+    raise exception 'This session is no longer on.';
+  end if;
+  if x.host = auth.uid() then
+    raise exception 'This is your own session.';
+  end if;
+  if (x.day + x.at) at time zone 'Europe/London' <= now() then
+    raise exception 'This session has already started.';
+  end if;
+  if exists (select 1 from public.study_joins where session_id = p_session and member = auth.uid()) then
+    return;
+  end if;
+  if (select count(*) from public.study_joins where session_id = p_session) >= x.capacity then
+    raise exception 'Sorry, the last place was just taken.';
+  end if;
+  insert into public.study_joins (session_id, member) values (p_session, auth.uid());
+end;
+$$;
+
+-- Leave a session, or (as the host) take someone off it.
+create or replace function public.study_leave(p_session uuid, p_member uuid default null)
+returns void
+language plpgsql volatile security definer set search_path = public
+as $$
+begin
+  if p_member is null or p_member = auth.uid() then
+    delete from public.study_joins where session_id = p_session and member = auth.uid();
+  elsif exists (select 1 from public.study_sessions where id = p_session and host = auth.uid()) then
+    delete from public.study_joins where session_id = p_session and member = p_member;
   else
     raise exception 'Not allowed';
   end if;

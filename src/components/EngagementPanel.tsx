@@ -32,6 +32,7 @@ const FEATURES: [EngagementFeature, string][] = [
   ['tools', '🧰 Tools'],
   ['events', '📅 RSVPs'],
   ['formals', '🎓 Formals'],
+  ['study', '📚 Study'],
 ]
 
 /** Admin: is it the same few people every time, or many people now and then? Counts only. */

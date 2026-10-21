@@ -122,6 +122,12 @@ export function UsagePanel() {
                 <Row label="Formal seats booked (all time)" value={data.formals.total_bookings} />
               </>
             )}
+            {data.study && (
+              <>
+                <Row label="📚 Study: upcoming sessions (joins)" value={`${data.study.upcoming} (${data.study.joins})`} />
+                <Row label="Study joins (all time)" value={data.study.total_joins} />
+              </>
+            )}
             <Row label="📢 Active notices" value={data.resources.notices} />
             {data.coffee && (
               <>
