@@ -1701,8 +1701,8 @@ $$;
 -------------------------------------------------------------------------------
 -- Someone posts a session (subject, topic, day, time, length, places) of one
 -- kind: 'teach' (I'll give a class), 'need' (I'm looking for a tutor; places =
--- how many helpers) or 'study' (study together). Others join it like an
--- appointment. Everyone sees what is on and how many places are left; only the
+-- how many helpers, extra = how many classmates stuck on the same thing can
+-- join too) or 'study' (study together). Others join it like an appointment. Everyone sees what is on and how many places are left; only the
 -- host and the people in it see who joined.
 
 create table if not exists public.study_sessions (
@@ -1725,12 +1725,23 @@ alter table public.study_sessions
   add column if not exists languages text[] not null default '{English}'
   check (cardinality(languages) between 1 and 6);
 
+-- For a 'need': how many classmates can join too, besides the helpers.
+alter table public.study_sessions
+  add column if not exists extra int not null default 0 check (extra between 0 and 19);
+
 create table if not exists public.study_joins (
   session_id uuid not null references public.study_sessions (id) on delete cascade,
   member uuid not null references auth.users (id) on delete cascade,
   created_at timestamptz not null default now(),
   primary key (session_id, member)
 );
+-- On a 'need', true = came to help, false = joined to get help too. Joins made
+-- before this existed were all helpers.
+alter table public.study_joins add column if not exists helper boolean;
+update public.study_joins j set helper = (s.kind = 'need')
+  from public.study_sessions s where s.id = j.session_id and j.helper is null;
+alter table public.study_joins alter column helper set default false;
+alter table public.study_joins alter column helper set not null;
 
 alter table public.study_sessions enable row level security;
 alter table public.study_joins enable row level security;
@@ -1764,7 +1775,11 @@ returns trigger
 language plpgsql security definer set search_path = public
 as $$
 begin
-  if new.capacity < (select count(*) from public.study_joins where session_id = new.id) then
+  if new.kind <> old.kind then
+    raise exception 'The kind of a post can''t change.';
+  end if;
+  if new.capacity < (select count(*) from public.study_joins where session_id = new.id and (helper or new.kind <> 'need'))
+     or new.extra < (select count(*) from public.study_joins where session_id = new.id and not helper and new.kind = 'need') then
     raise exception 'Some people have already joined: you can''t offer fewer places than that.';
   end if;
   return new;
@@ -1781,8 +1796,10 @@ language sql stable security definer set search_path = public
 as $$
   with s as (
     select x.*,
-           (select count(*) from public.study_joins j where j.session_id = x.id) as taken,
-           exists (select 1 from public.study_joins j where j.session_id = x.id and j.member = auth.uid()) as joined
+           (select count(*) from public.study_joins j where j.session_id = x.id and (j.helper or x.kind <> 'need')) as taken,
+           (select count(*) from public.study_joins j where j.session_id = x.id and not j.helper and x.kind = 'need') as extra_taken,
+           (select case when j.helper then 'help' else 'join' end from public.study_joins j
+            where j.session_id = x.id and j.member = auth.uid()) as my_role
     from public.study_sessions x
     where (x.day + x.at) at time zone 'Europe/London' > now()
   )
@@ -1797,25 +1814,35 @@ as $$
     'minutes', s.minutes,
     'languages', s.languages,
     'capacity', s.capacity,
+    'extra', s.extra,
+    'extra_taken', s.extra_taken,
     'place', s.place,
     'notes', s.notes,
     'taken', s.taken,
     'mine', s.host = auth.uid(),
-    'joined', s.joined,
-    'members', case when s.host = auth.uid() or s.joined then coalesce((
+    'joined', s.my_role is not null,
+    'my_role', s.my_role,
+    'members', case when s.host = auth.uid() or s.my_role is not null then coalesce((
       select jsonb_agg(j.member order by j.created_at) from public.study_joins j where j.session_id = s.id
+    ), '[]'::jsonb) else '[]'::jsonb end,
+    'helpers', case when s.kind = 'need' and (s.host = auth.uid() or s.my_role is not null) then coalesce((
+      select jsonb_agg(j.member order by j.created_at) from public.study_joins j where j.session_id = s.id and j.helper
     ), '[]'::jsonb) else '[]'::jsonb end
   ) order by s.day, s.at), '[]'::jsonb)
   from s
   where public.is_member();
 $$;
 
-create or replace function public.study_join(p_session uuid)
+-- p_help: on a 'need', true = I'll help, false = I'll join to get help too
+-- (left out = help, as before). Ignored for other kinds.
+drop function if exists public.study_join(uuid);
+create or replace function public.study_join(p_session uuid, p_help boolean default null)
 returns void
 language plpgsql volatile security definer set search_path = public
 as $$
 declare
   x public.study_sessions;
+  help boolean;
 begin
   if not public.is_member() then
     raise exception 'Not allowed';
@@ -1833,10 +1860,16 @@ begin
   if exists (select 1 from public.study_joins where session_id = p_session and member = auth.uid()) then
     return;
   end if;
-  if (select count(*) from public.study_joins where session_id = p_session) >= x.capacity then
-    raise exception 'Sorry, the last place was just taken.';
+  help := x.kind = 'need' and coalesce(p_help, true);
+  if x.kind = 'need' and not help then
+    if (select count(*) from public.study_joins where session_id = p_session and not helper) >= x.extra then
+      raise exception 'Sorry, there''s no room for more classmates in this one.';
+    end if;
+  elsif (select count(*) from public.study_joins where session_id = p_session and (helper or x.kind <> 'need')) >= x.capacity then
+    raise exception '%', case when help then 'Someone is already helping with this one.'
+                              else 'Sorry, the last place was just taken.' end;
   end if;
-  insert into public.study_joins (session_id, member) values (p_session, auth.uid());
+  insert into public.study_joins (session_id, member, helper) values (p_session, auth.uid(), help);
 end;
 $$;
 

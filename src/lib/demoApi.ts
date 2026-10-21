@@ -42,9 +42,11 @@ interface DemoState {
   newsletterChecks?: { newsletter_id: string; item_id: string }[]
   coffee?: { auto: boolean; entries: Record<string, boolean>; rounds: Record<string, string[][]> }
   formals?: { slots: DemoFormal[]; bookings: { slot_id: string; guest: string }[] }
-  study?: { sessions: DemoStudy[]; joins: { session_id: string; member: string }[] }
+  study?: { sessions: DemoStudy[]; joins: DemoJoin[] }
 }
-type DemoStudy = Omit<StudySession, 'taken' | 'mine' | 'joined' | 'members'>
+/** extra / helper may be missing in demos saved before they existed. */
+type DemoStudy = Omit<StudySession, 'taken' | 'extra_taken' | 'mine' | 'joined' | 'my_role' | 'members' | 'helpers'>
+type DemoJoin = { session_id: string; member: string; helper?: boolean }
 type DemoFormal = Omit<FormalSlot, 'taken' | 'mine' | 'booked' | 'guests'>
 
 /** Stable pseudo-random number for a string (demo only). */
@@ -229,13 +231,15 @@ export function createDemoApi(): Api {
         minutes,
         languages: i === 1 ? ['English', 'Spanish'] : i === 4 ? ['English', 'French'] : ['English'],
         capacity,
+        extra: kind === 'need' ? 3 : 0,
         place,
         notes: null,
       }))
-      const joins = [
+      const joins: DemoJoin[] = [
         { session_id: 'study-0', member: hosts[0].user_id! },
         { session_id: 'study-0', member: hosts[4].user_id! },
         { session_id: 'study-1', member: hosts[7].user_id! },
+        { session_id: 'study-2', member: hosts[6].user_id!, helper: false },
       ]
       return { sessions, joins }
     })())
@@ -730,10 +734,25 @@ export function createDemoApi(): Api {
         .filter((s) => new Date(`${s.day}T${s.time}:00`) > now)
         .sort((a, b) => (a.day + a.time).localeCompare(b.day + b.time))
         .map((s) => {
-          const members = joins.filter((j) => j.session_id === s.id).map((j) => j.member)
+          const need = s.kind === 'need'
+          const js = joins.filter((j) => j.session_id === s.id)
+          const isHelper = (j: DemoJoin) => need && (j.helper ?? true)
+          const members = js.map((j) => j.member)
+          const helpers = js.filter(isHelper).map((j) => j.member)
+          const mineJ = js.find((j) => j.member === me)
           const mine = s.host === me
-          const joined = members.includes(me)
-          return clone({ ...s, taken: members.length, mine, joined, members: mine || joined ? members : [] })
+          const show = mine || !!mineJ
+          return clone({
+            ...s,
+            extra: s.extra ?? 0,
+            taken: need ? helpers.length : members.length,
+            extra_taken: need ? members.length - helpers.length : 0,
+            mine,
+            joined: !!mineJ,
+            my_role: mineJ ? (isHelper(mineJ) ? ('help' as const) : ('join' as const)) : null,
+            members: show ? members : [],
+            helpers: show ? helpers : [],
+          })
         })
     },
     async saveStudy(input, id) {
@@ -741,7 +760,9 @@ export function createDemoApi(): Api {
       if (id) {
         const s = st.sessions.find((x) => x.id === id && x.host === DEMO_USER.id)
         if (!s) throw new Error('Not allowed')
-        if (input.capacity < st.joins.filter((j) => j.session_id === id).length)
+        const js = st.joins.filter((j) => j.session_id === id)
+        const helpers = js.filter((j) => s.kind === 'need' && (j.helper ?? true)).length
+        if (input.capacity < (s.kind === 'need' ? helpers : js.length) || input.extra < js.length - helpers)
           throw new Error('Some people have already joined: you can’t offer fewer places than that.')
         Object.assign(s, input)
       } else st.sessions.push({ ...input, id: crypto.randomUUID(), host: DEMO_USER.id })
@@ -753,15 +774,21 @@ export function createDemoApi(): Api {
       st.joins = st.joins.filter((j) => st.sessions.some((s) => s.id === j.session_id))
       save()
     },
-    async studyJoin(id) {
+    async studyJoin(id, help) {
       const st = study()
       const s = st.sessions.find((x) => x.id === id)
       if (!s) throw new Error('This session is no longer on.')
       if (s.host === DEMO_USER.id) throw new Error('This is your own session.')
-      const members = st.joins.filter((j) => j.session_id === id)
-      if (members.some((j) => j.member === DEMO_USER.id)) return
-      if (members.length >= s.capacity) throw new Error('Sorry, the last place was just taken.')
-      st.joins.push({ session_id: id, member: DEMO_USER.id })
+      const js = st.joins.filter((j) => j.session_id === id)
+      if (js.some((j) => j.member === DEMO_USER.id)) return
+      const need = s.kind === 'need'
+      const helper = need && (help ?? true)
+      const helpers = js.filter((j) => need && (j.helper ?? true)).length
+      if (need && !helper) {
+        if (js.length - helpers >= (s.extra ?? 0)) throw new Error('Sorry, there’s no room for more classmates in this one.')
+      } else if ((need ? helpers : js.length) >= s.capacity)
+        throw new Error(helper ? 'Someone is already helping with this one.' : 'Sorry, the last place was just taken.')
+      st.joins.push({ session_id: id, member: DEMO_USER.id, helper })
       save()
     },
     async studyLeave(id, member) {
