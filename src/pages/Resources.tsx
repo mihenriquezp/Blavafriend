@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Coffee } from '../components/Coffee'
 import { Formals } from '../components/Formals'
@@ -8,24 +8,14 @@ import { api } from '../lib/api'
 import { resizeImage } from '../lib/image'
 import { callName } from '../lib/names'
 import { useStore } from '../lib/store'
-import type { CalEvent, CalEventInput, Notice, NoticeCategory, NoticeInput, Rsvp, Student } from '../lib/types'
+import type { CalEvent, CalEventInput, Rsvp, Student } from '../lib/types'
 
-type Tab = 'events' | 'coffee' | 'formals' | 'study' | 'notices'
+type Tab = 'events' | 'coffee' | 'formals' | 'study'
 const TABS: { value: Tab; label: string; emoji: string }[] = [
   { value: 'coffee', label: 'Coffee roulette', emoji: '☕' },
   { value: 'formals', label: 'Formals', emoji: '🎓' },
   { value: 'study', label: 'Study', emoji: '📚' },
   { value: 'events', label: 'Events', emoji: '📅' },
-  { value: 'notices', label: 'Notice board', emoji: '📢' },
-]
-
-export const NOTICE_CATEGORIES: { value: NoticeCategory; label: string; emoji: string; cls: string }[] = [
-  { value: 'event', label: 'Event', emoji: '📅', cls: 'bg-sky-100 text-sky-900' },
-  { value: 'deal', label: 'Discount / Deal', emoji: '💸', cls: 'bg-emerald-100 text-emerald-900' },
-  { value: 'opportunity', label: 'Opportunity', emoji: '🚀', cls: 'bg-violet-100 text-violet-900' },
-  { value: 'housing', label: 'Housing', emoji: '🏠', cls: 'bg-amber-100 text-amber-900' },
-  { value: 'for_sale', label: 'For sale / Free', emoji: '🛍️', cls: 'bg-rose-100 text-rose-900' },
-  { value: 'other', label: 'Other', emoji: '📌', cls: 'bg-gray-100 text-gray-800' },
 ]
 
 const safeLink = (v: string) => {
@@ -58,7 +48,7 @@ export default function Resources() {
       <div>
         <h1 className="font-display text-2xl font-bold text-oxford-900">Coffee +</h1>
         <p className="text-sm text-gray-500">
-          Coffees, formals, study sessions, plans and tips from the cohort. Everything here is visible to all
+          Coffees, formals, study sessions and events with the cohort. Everything here is visible to all
           classmates, except your coffee match and who joins each formal or study session.
         </p>
       </div>
@@ -81,7 +71,6 @@ export default function Resources() {
       {tab === 'coffee' && <Coffee />}
       {tab === 'formals' && <Formals />}
       {tab === 'study' && <Study />}
-      {tab === 'notices' && <Notices />}
     </div>
   )
 }
@@ -431,162 +420,6 @@ function EventForm({ initial, onCancel, onSaved }: { initial: CalEvent | null; o
   )
 }
 
-/* ------------------------------------------------------------------ Notices */
-
-function today() {
-  return new Date().toISOString().slice(0, 10)
-}
-function inDays(n: number) {
-  return new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10)
-}
-
-function Notices() {
-  const { user, isAdmin } = useStore()
-  const author = useAuthors()
-  const [notices, setNotices] = useState<Notice[] | null>(null)
-  const [editing, setEditing] = useState<Notice | 'new' | null>(null)
-  const [filter, setFilter] = useState<NoticeCategory | 'all'>('all')
-  const [error, setError] = useState<string | null>(null)
-
-  const load = useCallback(() => api.listNotices().then(setNotices, (e) => setError(String(e))), [])
-  useEffect(() => {
-    load()
-  }, [load])
-
-  const active = useMemo(() => (notices ?? []).filter((n) => !n.expires_on || n.expires_on >= today()), [notices])
-  const shown = filter === 'all' ? active : active.filter((n) => n.category === filter)
-
-  if (error) return <p className="text-red-700">Couldn’t load notices: {error}</p>
-  if (!notices) return <Spinner />
-
-  return (
-    <div className="space-y-3">
-      {editing ? (
-        <NoticeForm
-          initial={editing === 'new' ? null : editing}
-          onCancel={() => setEditing(null)}
-          onSaved={() => {
-            setEditing(null)
-            load()
-          }}
-        />
-      ) : (
-        <button className={`${btnPrimary} w-full sm:w-auto`} onClick={() => setEditing('new')}>
-          ＋ New notice
-        </button>
-      )}
-
-      <div className="flex flex-wrap gap-1.5">
-        <FilterChip active={filter === 'all'} onClick={() => setFilter('all')}>
-          All ({active.length})
-        </FilterChip>
-        {NOTICE_CATEGORIES.map((c) => {
-          const n = active.filter((x) => x.category === c.value).length
-          return (
-            <FilterChip key={c.value} active={filter === c.value} onClick={() => setFilter(c.value)}>
-              {c.emoji} {c.label} ({n})
-            </FilterChip>
-          )
-        })}
-      </div>
-
-      {shown.length ? (
-        shown.map((n) => {
-          const cat = NOTICE_CATEGORIES.find((c) => c.value === n.category)!
-          return (
-            <Card key={n.id}>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${cat.cls}`}>
-                  {cat.emoji} {cat.label}
-                </span>
-                {n.expires_on && (
-                  <span className="text-xs text-gray-500">
-                    until {new Date(`${n.expires_on}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                  </span>
-                )}
-              </div>
-              <h3 className="mt-2 font-semibold text-oxford-900">{n.title}</h3>
-              {n.body && <p className="mt-1 text-sm whitespace-pre-line text-gray-700">{n.body}</p>}
-              {n.link && (
-                <a href={n.link} target="_blank" rel="noreferrer noopener" className="mt-2 inline-block text-sm font-medium text-oxford-500 underline">
-                  🔗 Open link
-                </a>
-              )}
-              <PostFooter
-                by={author(n.created_by)}
-                at={n.created_at}
-                canEdit={n.created_by === user!.id || isAdmin}
-                onEdit={() => setEditing(n)}
-                onDelete={async () => {
-                  if (!confirm(`Delete “${n.title}”?`)) return
-                  await api.deleteNotice(n.id)
-                  load()
-                }}
-              />
-            </Card>
-          )
-        })
-      ) : (
-        <Empty emoji="📢" text={filter === 'all' ? 'Nothing on the board yet. Share a tip, a deal or an opportunity!' : 'Nothing in this category right now.'} />
-      )}
-    </div>
-  )
-}
-
-function NoticeForm({ initial, onCancel, onSaved }: { initial: Notice | null; onCancel: () => void; onSaved: () => void }) {
-  const [category, setCategory] = useState<NoticeCategory>(initial?.category ?? 'other')
-  const [title, setTitle] = useState(initial?.title ?? '')
-  const [body, setBody] = useState(initial?.body ?? '')
-  const [link, setLink] = useState(initial?.link ?? '')
-  const [expires, setExpires] = useState(initial ? (initial.expires_on ?? '') : inDays(30))
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const submit = async () => {
-    const l = safeLink(link)
-    if (l === undefined) return setError('That link doesn’t look right.')
-    const input: NoticeInput = { category, title: title.trim(), body: body.trim() || null, link: l, expires_on: expires || null }
-    setBusy(true)
-    setError(null)
-    try {
-      await api.saveNotice(input, initial?.id)
-      onSaved()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <FormCard title={initial ? 'Edit notice' : 'New notice'} onCancel={onCancel} onSubmit={submit} busy={busy} error={error} canSubmit={!!title.trim()}>
-      <Field label="Category" group>
-        <div className="flex flex-wrap gap-1.5">
-          {NOTICE_CATEGORIES.map((c) => (
-            <FilterChip key={c.value} active={category === c.value} onClick={() => setCategory(c.value)}>
-              {c.emoji} {c.label}
-            </FilterChip>
-          ))}
-        </div>
-      </Field>
-      <Field label="Title">
-        <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} className={inputCls} required />
-      </Field>
-      <Field label="Details (optional)">
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} maxLength={2000} className={inputCls} />
-      </Field>
-      <Field label="Link (optional)">
-        <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" className={inputCls} />
-      </Field>
-      <Field label="Show until" hint="It disappears from the board after this date. Leave empty to keep it.">
-        <input type="date" value={expires} min={today()} onChange={(e) => setExpires(e.target.value)} className={inputCls} />
-      </Field>
-    </FormCard>
-  )
-}
-
-/* ------------------------------------------------------------------ Shared */
-
 function FormCard({
   title,
   children,
@@ -666,21 +499,6 @@ function PostFooter({
         </span>
       )}
     </div>
-  )
-}
-
-function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`rounded-full border px-3 py-1 text-xs font-medium ${
-        active ? 'border-oxford-900 bg-oxford-900 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-oxford-300'
-      }`}
-    >
-      {children}
-    </button>
   )
 }
 

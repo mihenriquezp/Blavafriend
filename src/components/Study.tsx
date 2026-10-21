@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { addDays, fmtDay, londonToday } from '../lib/coffee'
 import { callName } from '../lib/names'
-import { STUDY_SUBJECTS } from '../lib/options'
+import { LANGUAGES, STUDY_SUBJECTS } from '../lib/options'
 import { useStore } from '../lib/store'
 import type { Student, StudyInput, StudyKind, StudySession } from '../lib/types'
 import { Guests, HostContact, MonthCalendar, Row, Step, plural } from './booking'
-import { Avatar, Card, Field, Spinner, btnPrimary, btnSecondary, inputCls } from './ui'
+import { Avatar, Card, Field, Spinner, TagPicker, btnPrimary, btnSecondary, inputCls } from './ui'
 
 type View = 'find' | 'post' | 'mine'
 const ALL = ''
@@ -191,7 +191,10 @@ function Find({
 }) {
   const open = useMemo(() => sessions.filter((s) => !s.mine), [sessions])
   const [kind, setKind] = useState<StudyKind | typeof ALL>(ALL)
-  const ofKind = useMemo(() => open.filter((s) => kind === ALL || s.kind === kind), [open, kind])
+  const [lang, setLang] = useState(ALL)
+  const langs = useMemo(() => [...new Set(open.flatMap((s) => s.languages))].sort(), [open])
+  const inLang = useMemo(() => open.filter((s) => lang === ALL || s.languages.includes(lang)), [open, lang])
+  const ofKind = useMemo(() => inLang.filter((s) => kind === ALL || s.kind === kind), [inLang, kind])
   const subjects = useMemo(() => {
     const m = new Map<string, number>()
     for (const s of ofKind) m.set(s.subject, (m.get(s.subject) ?? 0) + left(s))
@@ -227,7 +230,7 @@ function Find({
       </Card>
     )
 
-  const count = (k: StudyKind | typeof ALL) => open.filter((s) => k === ALL || s.kind === k).length
+  const count = (k: StudyKind | typeof ALL) => inLang.filter((s) => k === ALL || s.kind === k).length
 
   return (
     <div className="space-y-4">
@@ -252,6 +255,27 @@ function Find({
           </button>
         ))}
       </div>
+      {langs.length > 1 && (
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          <span aria-hidden>🗣️</span> Language
+          <select
+            value={lang}
+            onChange={(e) => {
+              setLang(e.target.value)
+              setSubject(ALL)
+              setDay(null)
+            }}
+            className={`${inputCls} !w-auto !py-1.5`}
+          >
+            <option value="">Any</option>
+            {langs.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       {!ofKind.length ? (
         <Card className="text-center text-sm text-gray-500">Nothing of this kind right now.</Card>
@@ -349,6 +373,7 @@ function SessionRow({ s, host, onJoin }: { s: StudySession; host?: Student; onJo
           </span>
         </div>
         {s.place && <div className="mt-0.5 truncate text-xs text-gray-500">📍 {s.place}</div>}
+        <div className="mt-0.5 truncate text-xs text-gray-500">🗣️ {s.languages.join(', ')}</div>
         <div className={`mt-0.5 text-xs ${n ? 'text-emerald-700' : 'text-gray-400'}`}>
           {n
             ? s.kind === 'need'
@@ -423,6 +448,7 @@ function JoinDialog({
         <dl className="mt-4 space-y-1.5 rounded-2xl bg-oxford-50 p-4 text-sm">
           <Row k="Subject" v={s.topic ? `${s.subject} · ${s.topic}` : s.subject} />
           <Row k="When" v={when(s)} />
+          <Row k="Language" v={s.languages.join(', ')} />
           {s.place && <Row k="Where" v={s.place} />}
           <Row k={helping ? 'Asked by' : 'Host'} v={host?.full_name ?? 'A classmate'} />
           {s.notes && <Row k="Notes" v={s.notes} />}
@@ -523,6 +549,7 @@ function Mine({
                   </div>
                   <div className="text-sm text-gray-600">{when(s)}</div>
                   {s.place && <div className="text-xs text-gray-500">📍 {s.place}</div>}
+                  <div className="text-xs text-gray-500">🗣️ {s.languages.join(', ')}</div>
                   <div className="text-xs text-gray-500">
                     {s.kind === 'need' ? 'You’re helping' : 'Host'}: {host?.full_name ?? 'a classmate'}
                   </div>
@@ -554,6 +581,7 @@ function Mine({
                       {s.topic && <span className="font-normal text-gray-600"> · {s.topic}</span>}
                     </div>
                     <div className="text-sm text-gray-600">{when(s)}</div>
+                    <div className="text-xs text-gray-500">🗣️ {s.languages.join(', ')}</div>
                     <div className="text-xs text-gray-500">
                       {s.kind === 'need'
                         ? s.taken
@@ -640,6 +668,7 @@ function PostForm({
   const [day, setDay] = useState(initial?.day ?? addDays(today, 2))
   const [time, setTime] = useState(initial?.time ?? '18:00')
   const [minutes, setMinutes] = useState(initial?.minutes ?? 60)
+  const [languages, setLanguages] = useState<string[]>(initial?.languages ?? ['English'])
   const [capacity, setCapacity] = useState(initial?.capacity ?? KINDS[startKind].seats)
   const [place, setPlace] = useState(initial?.place ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
@@ -653,6 +682,8 @@ function PostForm({
     if (subject === 'Other' && !topic.trim()) return setError('Say what it’s about in the topic.')
     if (!day || day < today) return setError('Choose a day from today on.')
     if (!/^\d{2}:\d{2}$/.test(time)) return setError('Choose a time.')
+    if (!languages.length) return setError('Choose at least one language.')
+    if (languages.length > 6) return setError('Choose up to 6 languages.')
     const input: StudyInput = {
       kind,
       subject,
@@ -660,6 +691,7 @@ function PostForm({
       day,
       time,
       minutes,
+      languages,
       capacity,
       place: place.trim() || null,
       notes: notes.trim() || null,
@@ -768,6 +800,9 @@ function PostForm({
             </button>
             {kind === 'teach' && <span className="text-xs text-gray-500">1 = one-to-one</span>}
           </div>
+        </Field>
+        <Field label="Languages" hint="Which languages you can do it in." group>
+          <TagPicker options={LANGUAGES} value={languages} onChange={setLanguages} placeholder="Add a language…" />
         </Field>
         <Field label="Where (optional)">
           <input
