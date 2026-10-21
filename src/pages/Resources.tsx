@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link, useSearchParams } from 'react-router-dom'
 import { Coffee } from '../components/Coffee'
 import { Formals } from '../components/Formals'
+import { Study } from '../components/Study'
 import { Avatar, Card, Field, Spinner, btnPrimary, btnSecondary, inputCls } from '../components/ui'
 import { api } from '../lib/api'
 import { resizeImage } from '../lib/image'
@@ -9,10 +10,11 @@ import { callName } from '../lib/names'
 import { useStore } from '../lib/store'
 import type { CalEvent, CalEventInput, Notice, NoticeCategory, NoticeInput, Rsvp, Student } from '../lib/types'
 
-type Tab = 'events' | 'coffee' | 'formals' | 'notices'
+type Tab = 'events' | 'coffee' | 'formals' | 'study' | 'notices'
 const TABS: { value: Tab; label: string; emoji: string }[] = [
   { value: 'coffee', label: 'Coffee roulette', emoji: '☕' },
   { value: 'formals', label: 'Formals', emoji: '🎓' },
+  { value: 'study', label: 'Study', emoji: '📚' },
   { value: 'events', label: 'Events', emoji: '📅' },
   { value: 'notices', label: 'Notice board', emoji: '📢' },
 ]
@@ -56,8 +58,8 @@ export default function Resources() {
       <div>
         <h1 className="font-display text-2xl font-bold text-oxford-900">Coffee +</h1>
         <p className="text-sm text-gray-500">
-          Coffees, formals, plans and tips from the cohort. Everything here is visible to all classmates, except your coffee
-          match and who is going to each formal.
+          Coffees, formals, study sessions, plans and tips from the cohort. Everything here is visible to all
+          classmates, except your coffee match and who joins each formal or study session.
         </p>
       </div>
       <div className="flex gap-1 overflow-x-auto" role="tablist">
@@ -78,6 +80,7 @@ export default function Resources() {
       {tab === 'events' && <Events />}
       {tab === 'coffee' && <Coffee />}
       {tab === 'formals' && <Formals />}
+      {tab === 'study' && <Study />}
       {tab === 'notices' && <Notices />}
     </div>
   )

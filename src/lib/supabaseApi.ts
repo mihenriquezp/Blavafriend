@@ -18,6 +18,7 @@ import type {
   Student,
   EngagementData,
   FormalSlot,
+  StudySession,
   Tool,
   ToolStats,
   UsageData,
@@ -274,6 +275,23 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     async formalCancel(id, guest) {
       check(await sb.rpc('formal_cancel', { p_slot: id, p_guest: guest ?? null }))
+    },
+    async studyBoard() {
+      return check(await sb.rpc('study_board')) as StudySession[]
+    },
+    async saveStudy(input, id) {
+      const { time, ...rest } = input
+      const row = { ...rest, at: time }
+      check(await (id ? sb.from('study_sessions').update(row).eq('id', id) : sb.from('study_sessions').insert(row)))
+    },
+    async deleteStudy(id) {
+      check(await sb.from('study_sessions').delete().eq('id', id))
+    },
+    async studyJoin(id) {
+      check(await sb.rpc('study_join', { p_session: id }))
+    },
+    async studyLeave(id, member) {
+      check(await sb.rpc('study_leave', { p_session: id, p_member: member ?? null }))
     },
     async coffeeState() {
       return check(await sb.rpc('coffee_state')) as CoffeeState

@@ -79,6 +79,9 @@ export const COLLEGES = [
   'Trinity', 'University', 'Wadham', 'Wolfson', 'Worcester', 'Wycliffe Hall',
 ] as const
 
+/** Subjects for Study sessions (MPP courses first; 'Other' lets people name anything in the topic). */
+export const STUDY_SUBJECTS = ['Economics', 'Foundations', 'Evidence', 'Law', 'Other'] as const
+
 export const POLICY_INTERESTS = [
   'AI & Tech Governance',
   'Digital Government',
