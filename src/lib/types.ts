@@ -248,17 +248,23 @@ export interface StudySession {
   languages: string[]
   /** Places: students for a class or group, helpers for a 'need'. */
   capacity: number
+  /** For a 'need': how many classmates can join too (to get help as well), and how many have. */
+  extra: number
+  extra_taken: number
   place: string | null
   notes: string | null
   taken: number
   mine: boolean
   joined: boolean
-  /** Who joined (user ids): only for the host and the people in it. */
+  /** How I'm in it: 'help' = helping on a 'need', 'join' = everything else. */
+  my_role: 'help' | 'join' | null
+  /** Who joined (user ids), and which of them came to help: only for the host and the people in it. */
   members: string[]
+  helpers: string[]
 }
 export type StudyInput = Pick<
   StudySession,
-  'kind' | 'subject' | 'topic' | 'day' | 'time' | 'minutes' | 'languages' | 'capacity' | 'place' | 'notes'
+  'kind' | 'subject' | 'topic' | 'day' | 'time' | 'minutes' | 'languages' | 'capacity' | 'extra' | 'place' | 'notes'
 >
 
 /** Seats offered at a college formal (see public.formal_board). */
@@ -396,7 +402,8 @@ export interface Api {
   studyBoard(): Promise<StudySession[]>
   saveStudy(input: StudyInput, id?: string): Promise<void>
   deleteStudy(id: string): Promise<void>
-  studyJoin(id: string): Promise<void>
+  /** On a 'need', help = true to help, false to join and get help too. */
+  studyJoin(id: string, help?: boolean): Promise<void>
   /** Leave a session, or as the host take someone (user id) off it. */
   studyLeave(id: string, member?: string): Promise<void>
 

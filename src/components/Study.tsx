@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { addDays, fmtDay, londonToday } from '../lib/coffee'
@@ -67,7 +67,11 @@ const KINDS: Record<
 const KIND_ORDER: StudyKind[] = ['teach', 'study', 'need']
 const LENGTHS = [30, 45, 60, 90, 120, 180]
 
+/** Helper places left (or places left, for a class or group). */
 const left = (s: StudySession) => s.capacity - s.taken
+/** On a 'need': places left for classmates who want help too. */
+const extraLeft = (s: StudySession) => (s.kind === 'need' ? s.extra - s.extra_taken : 0)
+const allLeft = (s: StudySession) => left(s) + extraLeft(s)
 export const fmtLength = (m: number) =>
   m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`
 
@@ -197,20 +201,20 @@ function Find({
   const ofKind = useMemo(() => inLang.filter((s) => kind === ALL || s.kind === kind), [inLang, kind])
   const subjects = useMemo(() => {
     const m = new Map<string, number>()
-    for (const s of ofKind) m.set(s.subject, (m.get(s.subject) ?? 0) + left(s))
+    for (const s of ofKind) m.set(s.subject, (m.get(s.subject) ?? 0) + allLeft(s))
     return [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
   }, [ofKind])
   const [subject, setSubject] = useState(ALL)
   const inSubject = useMemo(() => ofKind.filter((s) => subject === ALL || s.subject === subject), [ofKind, subject])
   const days = useMemo(() => {
     const m = new Map<string, number>()
-    for (const s of inSubject) m.set(s.day, (m.get(s.day) ?? 0) + left(s))
+    for (const s of inSubject) m.set(s.day, (m.get(s.day) ?? 0) + allLeft(s))
     return m
   }, [inSubject])
   const firstFree = [...days].find(([, n]) => n > 0)?.[0] ?? [...days.keys()][0] ?? null
   const [day, setDay] = useState<string | null>(null)
   const shownDay = day && days.has(day) ? day : firstFree
-  const [joining, setJoining] = useState<StudySession | null>(null)
+  const [joining, setJoining] = useState<{ s: StudySession; help: boolean } | null>(null)
 
   if (!open.length)
     return (
@@ -324,7 +328,7 @@ function Find({
                 {inSubject
                   .filter((s) => s.day === shownDay)
                   .map((s) => (
-                    <SessionRow key={s.id} s={s} host={byUser(s.host)} onJoin={() => setJoining(s)} />
+                    <SessionRow key={s.id} s={s} host={byUser(s.host)} onJoin={(help) => setJoining({ s, help })} />
                   ))}
               </ul>
             </Card>
@@ -345,14 +349,22 @@ function Find({
       </p>
 
       {joining && (
-        <JoinDialog s={joining} host={byUser(joining.host)} onClose={() => setJoining(null)} onJoined={reload} />
+        <JoinDialog
+          s={joining.s}
+          help={joining.help}
+          host={byUser(joining.s.host)}
+          onClose={() => setJoining(null)}
+          onJoined={reload}
+        />
       )}
     </div>
   )
 }
 
-function SessionRow({ s, host, onJoin }: { s: StudySession; host?: Student; onJoin: () => void }) {
+function SessionRow({ s, host, onJoin }: { s: StudySession; host?: Student; onJoin: (help: boolean) => void }) {
   const n = left(s)
+  const need = s.kind === 'need'
+  const x = extraLeft(s)
   return (
     <li className="flex items-start gap-3 rounded-2xl p-3 ring-1 ring-gray-200">
       <div className="w-14 shrink-0 rounded-xl bg-oxford-900 py-1.5 text-center text-white">
@@ -376,19 +388,37 @@ function SessionRow({ s, host, onJoin }: { s: StudySession; host?: Student; onJo
         <div className="mt-0.5 truncate text-xs text-gray-500">🗣️ {s.languages.join(', ')}</div>
         <div className={`mt-0.5 text-xs ${n ? 'text-emerald-700' : 'text-gray-400'}`}>
           {n
-            ? s.kind === 'need'
+            ? need
               ? 'Looking for help'
               : `${n} of ${plural(s.capacity, 'place')} left`
-            : s.kind === 'need'
+            : need
               ? 'Someone is helping'
               : 'Full'}
         </div>
+        {need && s.extra > 0 && (
+          <div className={`text-xs ${x ? 'text-emerald-700' : 'text-gray-400'}`}>
+            {x ? `${x} of ${plural(s.extra, 'place')} for classmates` : 'Full for classmates'}
+          </div>
+        )}
       </div>
-      <div className="shrink-0 self-center">
+      <div className="flex shrink-0 flex-col gap-1.5 self-center">
         {s.joined ? (
-          <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-900">✓ In</span>
+          <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-900">
+            {s.my_role === 'help' ? '✓ Helping' : '✓ In'}
+          </span>
+        ) : need ? (
+          <>
+            <button className={`${btnPrimary} !px-3`} disabled={!n} onClick={() => onJoin(true)}>
+              {n ? 'I can help' : 'Helped'}
+            </button>
+            {s.extra > 0 && (
+              <button className={`${btnSecondary} !px-3`} disabled={!x} onClick={() => onJoin(false)}>
+                Join too
+              </button>
+            )}
+          </>
         ) : (
-          <button className={`${btnPrimary} !px-3`} disabled={!n} onClick={onJoin}>
+          <button className={`${btnPrimary} !px-3`} disabled={!n} onClick={() => onJoin(false)}>
             {n ? KINDS[s.kind].join : 'Full'}
           </button>
         )}
@@ -399,11 +429,14 @@ function SessionRow({ s, host, onJoin }: { s: StudySession; host?: Student; onJo
 
 function JoinDialog({
   s,
+  help,
   host,
   onClose,
   onJoined,
 }: {
   s: StudySession
+  /** On a 'need': come to help (true) or join to get help too (false). */
+  help: boolean
   host?: Student
   onClose: () => void
   onJoined: () => void
@@ -412,13 +445,14 @@ function JoinDialog({
   const [done, setDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const name = host ? callName(host) : 'them'
-  const helping = s.kind === 'need'
+  const helping = s.kind === 'need' && help
+  const tagAlong = s.kind === 'need' && !help
 
   const join = async () => {
     setBusy(true)
     setError(null)
     try {
-      await api.studyJoin(s.id)
+      await api.studyJoin(s.id, s.kind === 'need' ? help : undefined)
       setDone(true)
       onJoined()
     } catch (e) {
@@ -442,7 +476,15 @@ function JoinDialog({
             {done ? '🙌' : KINDS[s.kind].emoji}
           </div>
           <h2 id="study-title" className="mt-2 font-display text-2xl font-bold text-oxford-900">
-            {done ? (helping ? 'Thank you!' : 'You’re in!') : helping ? `Help ${name}?` : 'Join this session?'}
+            {done
+              ? helping
+                ? 'Thank you!'
+                : 'You’re in!'
+              : helping
+                ? `Help ${name}?`
+                : tagAlong
+                  ? `Join ${name}’s session?`
+                  : 'Join this session?'}
           </h2>
         </div>
         <dl className="mt-4 space-y-1.5 rounded-2xl bg-oxford-50 p-4 text-sm">
@@ -450,7 +492,7 @@ function JoinDialog({
           <Row k="When" v={when(s)} />
           <Row k="Language" v={s.languages.join(', ')} />
           {s.place && <Row k="Where" v={s.place} />}
-          <Row k={helping ? 'Asked by' : 'Host'} v={host?.full_name ?? 'A classmate'} />
+          <Row k={s.kind === 'need' ? 'Asked by' : 'Host'} v={host?.full_name ?? 'A classmate'} />
           {s.notes && <Row k="Notes" v={s.notes} />}
         </dl>
         {done ? (
@@ -466,8 +508,12 @@ function JoinDialog({
         ) : (
           <p className="mt-4 text-sm text-gray-600">
             {helping
-              ? `This tells ${name} you can help, and saves the time for you both.`
-              : 'This saves you a place. If you can’t make it, leave it so someone else can come.'}
+              ? `This tells ${name} you can help, and saves the time for you both.${
+                  s.extra_taken ? ` ${plural(s.extra_taken, 'other classmate')} will be there too.` : ''
+                }`
+              : tagAlong
+                ? `Stuck on the same thing? Join ${name} and get help too, whoever comes to help.`
+                : 'This saves you a place. If you can’t make it, leave it so someone else can come.'}
           </p>
         )}
         {error && <p className="mt-3 rounded-lg bg-red-50 p-2 text-sm text-red-700">{error}</p>}
@@ -551,9 +597,21 @@ function Mine({
                   {s.place && <div className="text-xs text-gray-500">📍 {s.place}</div>}
                   <div className="text-xs text-gray-500">🗣️ {s.languages.join(', ')}</div>
                   <div className="text-xs text-gray-500">
-                    {s.kind === 'need' ? 'You’re helping' : 'Host'}: {host?.full_name ?? 'a classmate'}
+                    {s.my_role === 'help' ? 'You’re helping' : s.kind === 'need' ? 'Asked by' : 'Host'}:{' '}
+                    {host?.full_name ?? 'a classmate'}
                   </div>
-                  <Guests ids={s.members} byUser={byUser} label={s.kind === 'need' ? 'Helping' : 'Going'} />
+                  {s.kind === 'need' ? (
+                    <>
+                      <Guests ids={s.helpers} byUser={byUser} label="Helping" />
+                      <Guests
+                        ids={s.members.filter((m) => !s.helpers.includes(m))}
+                        byUser={byUser}
+                        label="Also joining"
+                      />
+                    </>
+                  ) : (
+                    <Guests ids={s.members} byUser={byUser} label="Going" />
+                  )}
                   {host && <HostContact host={host} />}
                   <button
                     className="mt-3 text-sm text-red-700 underline"
@@ -584,9 +642,9 @@ function Mine({
                     <div className="text-xs text-gray-500">🗣️ {s.languages.join(', ')}</div>
                     <div className="text-xs text-gray-500">
                       {s.kind === 'need'
-                        ? s.taken
-                          ? `${plural(s.taken, 'person')} offered to help`
-                          : 'No one yet'
+                        ? `${s.taken ? `${plural(s.taken, 'person')} helping` : 'No helper yet'}${
+                            s.extra ? ` · ${s.extra_taken} of ${s.extra} classmates joined` : ''
+                          }`
                         : `${s.taken} of ${plural(s.capacity, 'place')} taken`}
                     </div>
                   </div>
@@ -624,6 +682,15 @@ function Mine({
                             </Link>
                           ) : (
                             <span className="flex-1 text-gray-500">A classmate</span>
+                          )}
+                          {s.kind === 'need' && (
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                s.helpers.includes(m) ? 'bg-emerald-100 text-emerald-900' : 'bg-gray-100 text-gray-700'
+                              }`}
+                            >
+                              {s.helpers.includes(m) ? 'helping' : 'joining'}
+                            </span>
                           )}
                           <button
                             className="text-xs text-gray-500 underline"
@@ -674,6 +741,7 @@ function PostForm({
   const [notes, setNotes] = useState(initial?.notes ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [extra, setExtra] = useState(initial?.extra ?? 0)
   const minSeats = Math.max(1, initial?.taken ?? 0)
   const k = KINDS[kind]
 
@@ -693,6 +761,7 @@ function PostForm({
       minutes,
       languages,
       capacity,
+      extra: kind === 'need' ? extra : 0,
       place: place.trim() || null,
       notes: notes.trim() || null,
     }
@@ -776,31 +845,19 @@ function PostForm({
           </Field>
         </div>
         <Field label={k.places} group>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="grid h-10 w-10 place-items-center rounded-lg bg-white text-lg ring-1 ring-gray-200 disabled:opacity-40"
-              onClick={() => setCapacity((c) => Math.max(minSeats, c - 1))}
-              disabled={capacity <= minSeats}
-              aria-label="One less"
-            >
-              −
-            </button>
-            <span className="w-8 text-center text-lg font-bold text-oxford-900" aria-live="polite">
-              {capacity}
-            </span>
-            <button
-              type="button"
-              className="grid h-10 w-10 place-items-center rounded-lg bg-white text-lg ring-1 ring-gray-200 disabled:opacity-40"
-              onClick={() => setCapacity((c) => Math.min(20, c + 1))}
-              disabled={capacity >= 20}
-              aria-label="One more"
-            >
-              +
-            </button>
+          <Stepper value={capacity} min={minSeats} max={20} onChange={setCapacity}>
             {kind === 'teach' && <span className="text-xs text-gray-500">1 = one-to-one</span>}
-          </div>
+          </Stepper>
         </Field>
+        {kind === 'need' && (
+          <Field
+            label="Classmates who can join too"
+            hint="Others stuck on the same thing can join your session and get help too. 0 = just you."
+            group
+          >
+            <Stepper value={extra} min={initial?.extra_taken ?? 0} max={19} onChange={setExtra} />
+          </Field>
+        )}
         <Field label="Languages" hint="Which languages you can do it in." group>
           <TagPicker options={LANGUAGES} value={languages} onChange={setLanguages} placeholder="Add a language…" />
         </Field>
@@ -838,5 +895,47 @@ function PostForm({
         </button>
       </div>
     </Card>
+  )
+}
+
+function Stepper({
+  value,
+  min,
+  max,
+  onChange,
+  children,
+}: {
+  value: number
+  min: number
+  max: number
+  onChange: (n: number) => void
+  children?: ReactNode
+}) {
+  const btn = 'grid h-10 w-10 place-items-center rounded-lg bg-white text-lg ring-1 ring-gray-200 disabled:opacity-40'
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        className={btn}
+        onClick={() => onChange(Math.max(min, value - 1))}
+        disabled={value <= min}
+        aria-label="One less"
+      >
+        −
+      </button>
+      <span className="w-8 text-center text-lg font-bold text-oxford-900" aria-live="polite">
+        {value}
+      </span>
+      <button
+        type="button"
+        className={btn}
+        onClick={() => onChange(Math.min(max, value + 1))}
+        disabled={value >= max}
+        aria-label="One more"
+      >
+        +
+      </button>
+      {children}
+    </div>
   )
 }

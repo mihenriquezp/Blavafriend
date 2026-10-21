@@ -287,8 +287,8 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     async deleteStudy(id) {
       check(await sb.from('study_sessions').delete().eq('id', id))
     },
-    async studyJoin(id) {
-      check(await sb.rpc('study_join', { p_session: id }))
+    async studyJoin(id, help) {
+      check(await sb.rpc('study_join', { p_session: id, p_help: help ?? null }))
     },
     async studyLeave(id, member) {
       check(await sb.rpc('study_leave', { p_session: id, p_member: member ?? null }))
