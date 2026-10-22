@@ -96,10 +96,10 @@ export function Privacy() {
         <p className="mt-1.5 text-xs text-green-900/80">Nobody is ever told how you rated them or that you starred them.</p>
       </div>
       <div className="rounded-xl border border-oxford-100 bg-oxford-50 p-3">
-        <div className="mb-1 font-semibold text-oxford-900">🌐 Counted anonymously in “Cohort”</div>
+        <div className="mb-1 font-semibold text-oxford-900">🌐 Shared profiles in “Cohort”</div>
         <p className="text-sm">
-          Your levels also feed the cohort-wide view: totals, an unnamed network of dots and how much continents mix.
-          It never shows names, who rated whom, or anyone’s individual levels, and groups smaller than 5 are hidden.
+          Cohort shows the profile information classmates share. It does not publish statistics about private
+          ratings, because comparing changes in those numbers could reveal individual ratings.
         </p>
       </div>
       <p className="text-xs text-gray-500">

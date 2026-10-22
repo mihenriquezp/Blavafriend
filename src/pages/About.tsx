@@ -38,17 +38,19 @@ export default function About() {
             totals, such as how many people opened the checklist and how far people got on average.
           </li>
         </ul>
-        <h2 className="pt-2 font-semibold text-oxford-900">Counted anonymously in “Cohort”</h2>
-        <ul className="list-disc space-y-1 pl-5">
-          <li>
-            Everyone’s levels are combined into anonymous totals for the Cohort tab: the Connection Index, weekly
-            progress, an unnamed network of dots and how much continents mix.
-          </li>
-          <li>
-            It never shows names, who rated whom or anyone’s individual levels. Dots are reshuffled on every visit, your
-            own dot only shows the ties you marked, and groups smaller than 5 people are hidden.
-          </li>
-        </ul>
+        <h2 className="pt-2 font-semibold text-oxford-900">The Cohort view</h2>
+        <p>
+          Cohort shows the profile information classmates share. Private ratings are not used for shared
+          connection counts, networks or progress charts: comparing changes could reveal individual ratings.
+          Your own progress remains available in Stats.
+        </p>
+        <h2 className="pt-2 font-semibold text-oxford-900">Deleting your account</h2>
+        <p>
+          Ask an admin to delete your account. This removes your login, profile, uploaded photos and account data
+          from the live service, including private ratings, notes and tool backups. An interrupted deletion is
+          kept pending until cleanup finishes. Browser storage, downloaded copies and provider backups may remain;
+          clear this site’s data on your devices to remove local tool data.
+        </p>
         <h2 className="pt-2 font-semibold text-oxford-900">Coffee roulette</h2>
         <ul className="list-disc space-y-1 pl-5">
           <li>
@@ -61,7 +63,7 @@ export default function About() {
         <h2 className="pt-2 font-semibold text-oxford-900">What's shared with the cohort</h2>
         <ul className="list-disc space-y-1 pl-5">
           <li>
-            Your profile (name, photo, role, college, countries, birthday (day and month only; the year is never shown), interests, languages, intro and any social links you add)
+            Your profile (name, photo, role, college, countries, birthday (day and month only; only you can access the year), interests, languages, intro and any social links you add)
             is visible to classmates who sign in with their Oxford account.
           </li>
           <li>Everything except your name is optional, and you can edit or remove it at any time from your profile.</li>

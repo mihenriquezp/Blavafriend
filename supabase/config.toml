@@ -1,0 +1,4 @@
+[functions.delete-student]
+# The handler verifies the bearer token with Auth.getUser and checks is_admin.
+# Do not rely on the gateway's legacy JWT validation (new signing keys use JWKS).
+verify_jwt = false

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "test": "tsc -p tsconfig.tests.json && node --import tsx --test tests/*.test.ts",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
@@ -26,6 +27,7 @@
     "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.11",
     "@tailwindcss/vite": "^4.3.3",
     "@types/d3-force": "^3.0.10",
     "@types/d3-geo": "^3.1.1",

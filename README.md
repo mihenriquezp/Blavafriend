@@ -34,6 +34,10 @@ Sin variables de Supabase, la app corre con 40 compañeros ficticios guardados e
    - **Gmail** con una *App Password* (`smtp.gmail.com`, puerto 465).
    Luego, en **Authentication → Rate Limits**, sube "emails per hour" a ~100.
 
+### Privacidad y borrado de cuentas
+
+Antes de desplegar esta versión, sigue [la guía de migración y despliegue](docs/privacy-patch-deployment.md): aplica el SQL y despliega la Edge Function `delete-student`. El borrado desde Admin elimina la cuenta y sus datos alojados, no solo el perfil. `npm test` comprueba las reglas de privacidad con datos ficticios.
+
 ### 2. Cargar a los compañeros
 ```bash
 npm run scrape    # nombres oficiales del directorio BSG (Rol: MPP, Año: 2026) → private/bsg-names.json
@@ -51,7 +55,7 @@ El importador cruza el Excel con la lista oficial: quienes están en el Excel co
 Listo: comparte el link con el curso.
 
 ## Administración
-- Si entras con un correo que está en `app_admins`, verás la pestaña **Admin**. Desde ahí puedes agregar estudiantes, editar perfiles (incluidas fotos), liberar un perfil que alguien reclamó por error ("Unclaim") y borrar perfiles.
+- Si entras con un correo que está en `app_admins`, verás la pestaña **Admin**. Desde ahí puedes agregar estudiantes, editar perfiles (incluidas fotos), liberar un perfil que alguien reclamó por error ("Unclaim") y borrar cuentas con sus datos alojados.
 - Las listas cerradas (colleges, intereses de política, hobbies, idiomas, países) están en [`src/lib/options.ts`](src/lib/options.ts). Los estudiantes pueden agregar hobbies e idiomas nuevos con "Other".
 - Para permitir un correo que no es de Oxford (por ejemplo, para pruebas): `insert into public.allowed_emails values ('alguien@gmail.com');`
 
