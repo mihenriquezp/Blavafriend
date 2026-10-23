@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { CohortSharingNotice } from './CohortSharing'
 import { LEVELS } from '../lib/options'
 import { btnPrimary, btnSecondary } from './ui'
 
@@ -37,7 +38,7 @@ export function HowItWorks() {
           everyone who plays tennis or works on AI.
         </Step>
         <Step icon="✨" title="Mark how well you know each person">
-          Update it whenever you meet someone. Only you see it.
+          Update your own record whenever you meet someone. Sharing it in Cohort statistics is optional.
         </Step>
         <Step icon="★" title="Star who you want to meet">
           Build your own “want to meet” list; people come off it once you move them up a level. Add private notes to
@@ -85,22 +86,20 @@ export function Privacy() {
         <p className="mt-1.5 text-xs text-gray-500">Everything except your name is optional. Edit or remove it any time.</p>
       </div>
       <div className="rounded-xl border border-green-200 bg-green-50 p-3">
-        <div className="mb-1.5 font-semibold text-green-900">🔒 What nobody else sees</div>
-        <p className="mb-1.5 text-sm">Only you, not your classmates and not the admin:</p>
+        <div className="mb-1.5 font-semibold text-green-900">🔒 Your personal records</div>
+        <p className="mb-1.5 text-sm">Only your account can directly read these records in the app:</p>
         <ul className="space-y-0.5 text-sm">
           <Item>How you’ve categorised each person (the five levels)</Item>
           <Item>Your “want to meet” ★ list</Item>
           <Item>Your private notes</Item>
           <Item>Your stats and history</Item>
         </ul>
-        <p className="mt-1.5 text-xs text-green-900/80">Nobody is ever told how you rated them or that you starred them.</p>
+        <p className="mt-1.5 text-xs text-green-900/80">There are no notifications about your levels or stars. If you opt in to Cohort sharing, shared totals can sometimes allow inferences about levels.</p>
       </div>
       <div className="rounded-xl border border-oxford-100 bg-oxford-50 p-3">
-        <div className="mb-1 font-semibold text-oxford-900">🌐 Shared profiles in “Cohort”</div>
-        <p className="text-sm">
-          Cohort shows the profile information classmates share. It does not publish statistics about private
-          ratings, because comparing changes in those numbers could reveal individual ratings.
-        </p>
+        <div className="mb-1 font-semibold text-oxford-900">🌐 Optional sharing in “Cohort”</div>
+        <CohortSharingNotice />
+        <p className="mt-2 text-sm">After signing in, make or change your choice in the Cohort tab. Reading this notice does not opt you in.</p>
       </div>
       <p className="text-xs text-gray-500">
         Profiles were pre-filled from the public BSG directory (names) and the cohort’s informal register so people are

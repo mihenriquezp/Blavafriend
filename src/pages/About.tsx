@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { InstallGuide } from '../components/InstallGuide'
+import { CohortSharingNotice } from '../components/CohortSharing'
 import { HowItWorks } from '../components/Intro'
 import { Card, btnSecondary } from '../components/ui'
 import { LEVELS } from '../lib/options'
@@ -28,22 +29,19 @@ export default function About() {
         <ul className="list-disc space-y-1 pl-5">
           <li>
             Your <b>levels</b> ({LEVELS.map((l) => l.short).join(', ')}), your <b>★ want-to-meet</b> marks, your{' '}
-            <b>notes</b> and your <b>stats</b> are visible only to you. No one else can see them in the app, including the
-            admin: the database only lets the account that created a row read it. (Like any web app, whoever runs the
+            <b>notes</b> and your personal <b>stats</b> can only be directly read by your account in the app. App admins
+            have no extra access. If you opt in, levels also contribute to shared Cohort statistics as explained below. (Like any web app, whoever runs the
             hosting account could technically open the raw database; the admin commits never to do that.)
           </li>
-          <li>Nobody is ever told how you rated them.</li>
+          <li>The app does not send notifications about your levels. Shared statistics can sometimes allow inferences about them.</li>
           <li>
             What you tick off in the weekly newsletter checklist is private too: only you see it. The admin only sees
             totals, such as how many people opened the checklist and how far people got on average.
           </li>
         </ul>
-        <h2 className="pt-2 font-semibold text-oxford-900">The Cohort view</h2>
-        <p>
-          Cohort shows the profile information classmates share. Private ratings are not used for shared
-          connection counts, networks or progress charts: comparing changes could reveal individual ratings.
-          Your own progress remains available in Stats.
-        </p>
+        <h2 className="pt-2 font-semibold text-oxford-900">Optional sharing in Cohort</h2>
+        <CohortSharingNotice />
+        <p><Link to="/cohort" className="text-oxford-700 underline">Review or change your sharing choice in Cohort.</Link></p>
         <h2 className="pt-2 font-semibold text-oxford-900">Deleting your account</h2>
         <p>
           Ask an admin to delete your account. This removes your login, profile, uploaded photos and account data

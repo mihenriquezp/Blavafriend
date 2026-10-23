@@ -1,4 +1,6 @@
 import { createClient, type User } from '@supabase/supabase-js'
+import { COUNTRY_CONTINENT } from './options'
+import { COHORT_CONSENT_VERSION } from './cohortConsent'
 import type {
   Api,
   CalEvent,
@@ -7,6 +9,7 @@ import type {
   Newsletter,
   NewsletterStats,
   CohortData,
+  CohortConsent,
   CustomTag,
   Notice,
   Relationship,
@@ -127,7 +130,15 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
 
     async getCohort() {
-      return check(await sb.rpc('cohort_overview')) as CohortData
+      return check(await sb.rpc('cohort_overview', { p_continents: COUNTRY_CONTINENT })) as CohortData
+    },
+
+    async getCohortConsent() {
+      return check(await sb.rpc('get_cohort_consent')) as CohortConsent
+    },
+
+    async setCohortConsent(enabled) {
+      return check(await sb.rpc('set_cohort_consent', { p_enabled: enabled, p_version: COHORT_CONSENT_VERSION })) as CohortConsent
     },
 
     async listCalEvents() {

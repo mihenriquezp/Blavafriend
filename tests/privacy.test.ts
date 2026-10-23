@@ -93,10 +93,11 @@ test('privacy boundaries on an upgraded database with fictional accounts', async
       await db.query(`select claim_student('${sid(3)}')`)
       assert.equal((await one('select birth_year from student_private')).birth_year, 1992)
     })
-    await t.test('shared RPC output is invariant under own/reverse ratings, history and group inputs', async () => {
+    await t.test('existing accounts are opted out and their rating changes do not enter shared output', async () => {
       await login(1)
       const initial = (await one('select cohort_overview() data')).data
-      assert.equal(initial.relationships_available, false)
+      assert.equal(initial.consent_version, '2026-10-23.v1')
+      assert.equal(initial.students, 0)
       await login(2)
       await db.query(`insert into relationships(student_id,level,note) values ('${sid(1)}',4,'Private B note')`)
       await login(1)
@@ -111,6 +112,70 @@ test('privacy boundaries on an upgraded database with fictional accounts', async
       assert.deepEqual((await one('select cohort_overview() data')).data, initial)
       assert.equal((await db.query(`select * from relationships where owner_id='${uid(2)}'`)).rows.length, 0)
       assert.ok((await db.query('select * from relationship_events')).rows.length > 0) // own Stats still works
+    })
+    await t.test('only the account can opt in, with the current notice and a server timestamp', async () => {
+      await login(null, 'anon')
+      await assert.rejects(db.query("select set_cohort_consent(true,'2026-10-23.v1')"), /permission denied/)
+      await login(1)
+      assert.equal((await one('select get_cohort_consent() c')).c.enabled, false)
+      await assert.rejects(db.query("select set_cohort_consent(true,'outdated')"), /notice has changed/)
+      await assert.rejects(db.query(`insert into cohort_consents(user_id,enabled,notice_version) values ('${uid(2)}',true,'2026-10-23.v1')`), /permission denied/)
+      const choice = (await one("select set_cohort_consent(true,'2026-10-23.v1') c")).c
+      assert.equal(choice.enabled, true)
+      assert.ok(choice.updated_at)
+      assert.equal((await one('select cohort_overview() data')).data.students, 1)
+      assert.equal((await one('select cohort_overview() data')).data.pairs.met, 0)
+      await login(4)
+      assert.equal((await db.query('select * from cohort_consents')).rows.length, 0)
+      await assert.rejects(db.query(`update cohort_consents set enabled=true where user_id='${uid(2)}'`), /permission denied/)
+    })
+    await t.test('consenting pairs retain live statistics and disclosed inference; outsiders never contribute', async () => {
+      await login(2)
+      await db.query("select set_cohort_consent(true,'2026-10-23.v1')")
+      await db.query(`update relationships set level=4 where student_id='${sid(1)}'`)
+      await login(1)
+      const normalize = (data: Record<string, any>) => ({ ...data, me: data.me === null ? null : 'me', edges: data.edges.map((edge: number[]) => edge[2]).sort() })
+      const initial = (await one('select cohort_overview() data')).data
+      assert.equal(initial.students, 2)
+      assert.equal(initial.pairs.friends, 1)
+      assert.ok(initial.weekly.length > 0)
+      // Consent accepts this inference: raising my level to 4 does not add a
+      // second pair when the other participant already marked me as a friend.
+      await db.query(`update relationships set level=4 where student_id='${sid(2)}'`)
+      assert.equal((await one('select cohort_overview() data')).data.pairs.friends, 1)
+      const shared = normalize((await one('select cohort_overview() data')).data)
+      await login(3)
+      await db.query(`insert into relationships(student_id,level,note) values ('${sid(1)}',4,'Excluded participant note')`)
+      await login(null, 'postgres')
+      await db.query(`update relationship_events set created_at='2000-01-01' where owner_id='${uid(3)}'`)
+      await login(1)
+      await db.query(`insert into relationships(student_id,level) values ('${sid(3)}',4)`)
+      // This also checks the weekly series start date: excluded history cannot
+      // change its length even if it predates all consenting participants.
+      assert.deepEqual(normalize((await one(`select cohort_overview('{"Example":"singleton"}') data`)).data), shared)
+      assert.equal((await db.query(`select * from relationships where owner_id='${uid(2)}'`)).rows.length, 0)
+      assert.ok(!JSON.stringify(shared).includes('Excluded participant note'))
+    })
+    await t.test('withdrawing or changing notice version excludes connections and history, not personal records', async () => {
+      await login(2)
+      const records = (await db.query('select * from relationships')).rows
+      const history = (await db.query('select * from relationship_events')).rows
+      // Withdrawal remains possible even from an older client notice version.
+      assert.equal((await one("select set_cohort_consent(false,'old-version') c")).c.enabled, false)
+      const without = (await one('select cohort_overview() data')).data
+      assert.equal(without.students, 1)
+      assert.deepEqual(without.pairs, { met: 0, great: 0, friends: 0 })
+      assert.deepEqual(without.edges, [])
+      assert.deepEqual(without.weekly, [])
+      assert.deepEqual((await db.query('select * from relationships')).rows, records)
+      assert.deepEqual((await db.query('select * from relationship_events')).rows, history)
+      await db.query("select set_cohort_consent(true,'2026-10-23.v1')")
+      await login(null, 'postgres')
+      await db.query(`update cohort_consents set notice_version='expired' where user_id='${uid(2)}'`)
+      await login(2)
+      assert.equal((await one('select get_cohort_consent() c')).c.enabled, false)
+      assert.equal((await one('select cohort_overview() data')).data.students, 1)
+      await db.query("select set_cohort_consent(true,'2026-10-23.v1')")
     })
     await t.test('deletion RPCs are service-only and direct profile deletion is blocked', async () => {
       for (const actor of [null, 1, 4]) {
@@ -146,6 +211,7 @@ test('privacy boundaries on an upgraded database with fictional accounts', async
       await assert.rejects(db.query('select * from admin_pending_deletions()'), /Only admins/)
       await login(1)
       assert.equal((await one('select is_member() ok')).ok, false)
+      await assert.rejects(db.query("select set_cohort_consent(true,'2026-10-23.v1')"), /Not allowed/)
       await assert.rejects(db.query(`insert into relationships(student_id,level) values ('${sid(3)}',2)`), /row-level security/)
       await assert.rejects(db.query(`insert into storage.objects(bucket_id,name,owner_id) values ('event-photos','${uid(1)}/new.jpg','${uid(1)}')`), /row-level security/)
       await login(4)

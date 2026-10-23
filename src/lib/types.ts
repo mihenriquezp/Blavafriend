@@ -56,9 +56,15 @@ export interface CustomTag {
   label: string
 }
 
-/** Directory-only summary. Legacy relationship fields are always empty. */
+export interface CohortConsent {
+  enabled: boolean
+  version: string
+  updated_at: string | null
+}
+
+/** Shared aggregates of connections between consenting students only. */
 export interface CohortData {
-  relationships_available: false
+  consent_version: string
   students: number
   claimed: number
   /** People who have marked at least one classmate. */
@@ -353,6 +359,8 @@ export interface Api {
   listEvents(): Promise<RelationshipEvent[]>
 
   getCohort(): Promise<CohortData>
+  getCohortConsent(): Promise<CohortConsent>
+  setCohortConsent(enabled: boolean): Promise<CohortConsent>
 
   listCalEvents(): Promise<CalEvent[]>
   saveCalEvent(input: CalEventInput, id?: string): Promise<CalEvent>

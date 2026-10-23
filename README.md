@@ -3,7 +3,7 @@
 Una app hecha por estudiantes del MPP (Blavatnik School, Oxford), para estudiantes del MPP: te permite llevar registro de qué compañeros has conocido y cuánto, marcar a quienes quieres conocer y ver tus estadísticas.
 
 - **Niveles**: 0 No se conocen · 1 Saludo · 2 Conversación inicial · 3 Gran conversación · 4 Amigos
-- **Todo lo tuyo es privado**: niveles, ★, notas e historial. La base de datos solo permite que cada cuenta lea sus propias filas (Row Level Security).
+- **Tus registros personales**: cada cuenta solo puede leer directamente sus propias filas (Row Level Security). Compartir niveles de familiaridad en las estadísticas de Cohort es opcional: se explica qué se comparte y que los cambios en las cifras pueden permitir inferencias. Las notas y ★ no se incluyen. Puedes retirar tu elección en Cohort.
 - **Login** con código enviado al correo de usuario de Oxford (`abcd1234@ox.ac.uk`; los alias `nombre@college.ox.ac.uk` no se aceptan, para que nadie tenga dos cuentas). Luego cada persona se busca en la lista y dice "este soy yo" (una sola vez).
 - **Web instalable** en iPhone/Android (PWA): Compartir → *Añadir a pantalla de inicio*.
 

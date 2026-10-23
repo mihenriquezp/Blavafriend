@@ -1,12 +1,14 @@
 // A fully local backend used when Supabase isn't configured. Data is fictional
 // and lives in this browser's localStorage, so anyone can try the app safely.
 import { COLLEGES, COUNTRIES, GENDER_OPTIONS, HOBBIES, LANGUAGES, POLICY_INTERESTS, UNDERGRAD_FIELDS, type Level } from './options'
-import { directoryOverview } from './cohort'
+import { computeCohort, type Rating } from './cohort'
+import { COHORT_CONSENT_VERSION } from './cohortConsent'
 import { addDays, drawAt, londonToday, matchGroups, openRound } from './coffee'
 import type {
   Api,
   CalEvent,
   CoffeeState,
+  CohortConsent,
   CustomTag,
   EngagementData,
   FormalSlot,
@@ -26,6 +28,7 @@ const KEY = 'blavafriend-demo-v6'
 const DEMO_USER: SessionUser = { id: 'demo-user', email: 'demo1234@ox.ac.uk' }
 
 interface DemoState {
+  cohortConsent?: CohortConsent
   signedIn: boolean
   students: Student[]
   relationships: Relationship[]
@@ -440,7 +443,34 @@ export function createDemoApi(): Api {
       return clone(state.events)
     },
     async getCohort() {
-      return directoryOverview(state.students)
+      const me = state.students.find((s) => s.user_id === DEMO_USER.id) ?? null
+      // Fictional classmates rating each other over the last few weeks, plus your own ratings.
+      const r = rng(7)
+      const others = state.students.filter((s) => s.id !== me?.id)
+      const day = 86_400_000
+      const ratings: Rating[] = []
+      for (const a of others)
+        for (const b of others) {
+          if (a.id === b.id || r() > 0.12) continue
+          const at = new Date(Date.now() - Math.floor(r() * 35) * day).toISOString()
+          ratings.push({ rater: a.id, ratee: b.id, level: 1 + Math.floor(r() * 4), at })
+        }
+      if (me)
+        for (const e of state.events) ratings.push({ rater: me.id, ratee: e.student_id, level: e.to_level, at: e.created_at })
+      // Fictional classmates are willing participants; the real demo visitor opts in explicitly.
+      const consenting = new Set(others.map((student) => student.id))
+      if (me && state.cohortConsent?.enabled && state.cohortConsent.version === COHORT_CONSENT_VERSION) consenting.add(me.id)
+      return computeCohort(state.students, ratings, me?.id ?? null, consenting)
+    },
+    async getCohortConsent() {
+      const choice = state.cohortConsent
+      return { enabled: choice?.version === COHORT_CONSENT_VERSION && choice.enabled,
+        version: COHORT_CONSENT_VERSION, updated_at: choice?.updated_at ?? null }
+    },
+    async setCohortConsent(enabled) {
+      state.cohortConsent = { enabled, version: COHORT_CONSENT_VERSION, updated_at: new Date().toISOString() }
+      save()
+      return clone(state.cohortConsent)
     },
 
     async listCalEvents() {
