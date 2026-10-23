@@ -12,7 +12,7 @@ interface Node {
 }
 
 /**
- * Unnamed network of the cohort: one dot per classmate, one line per pair
+ * Anonymous network of the cohort: one dot per classmate, one line per pair
  * who've met. Only the viewer's own dot is highlighted.
  */
 export function Constellation({
@@ -134,7 +134,7 @@ export function Constellation({
         style={{ width, height }}
         className="block rounded-xl bg-oxford-50/60"
         role="img"
-        aria-label={`Unnamed network of ${size} classmates: ${shown.length} ties shown, ${connected} classmates connected.`}
+        aria-label={`Anonymous network of ${size} classmates: ${shown.length} ties shown, ${connected} classmates connected.`}
       />
     </div>
   )

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { ProfileForm } from '../components/ProfileForm'
 import { Avatar, Card, FacultyBadge, btnPrimary, inputCls } from '../components/ui'
@@ -14,30 +14,19 @@ export default function Admin() {
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [pending, setPending] = useState<{ student_id: string; requested_at: string }[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const list = useMemo(() => students.filter((s) => !q || matchesName(s, q)), [students, q])
   const claimed = students.filter((s) => s.user_id).length
 
-  useEffect(() => {
-    if (isAdmin) api.adminPendingDeletions().then(setPending, (e) => setError(String(e)))
-  }, [isAdmin])
-
   if (!isAdmin) return <Navigate to="/" replace />
 
   const run = async (fn: () => Promise<void>) => {
-    if (busy) return
-    setBusy(true)
     setError(null)
     try {
       await fn()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      try { setPending(await api.adminPendingDeletions()) } catch { /* Keep the original action error. */ }
-      setBusy(false)
     }
   }
 
@@ -77,24 +66,6 @@ export default function Admin() {
 
       {error && <p className="rounded-lg bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
-      {pending.length > 0 && (
-        <Card>
-          <h2 className="font-semibold text-oxford-900">Unfinished account deletions</h2>
-          <p className="mt-1 text-sm text-gray-600">These accounts are blocked while their data is being removed. Retry to finish.</p>
-          <ul className="mt-2 space-y-2">
-            {pending.map((job) => (
-              <li key={job.student_id} className="flex items-center justify-between gap-3 text-sm">
-                <span>{students.find((student) => student.id === job.student_id)?.full_name ?? 'Account removed'} · {new Date(job.requested_at).toLocaleString()}</span>
-                <button disabled={busy} className="text-red-700 underline disabled:opacity-50" onClick={() => run(async () => {
-                  await api.adminDeleteStudent(job.student_id)
-                  removeStudent(job.student_id)
-                })}>Retry deletion</button>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className={inputCls} type="search" />
 
       <ul className="space-y-2">
@@ -124,17 +95,16 @@ export default function Admin() {
                 </button>
               )}
               <button
-                disabled={busy}
-                className="text-sm text-red-700 underline disabled:opacity-50"
+                className="text-sm text-red-700 underline"
                 onClick={() =>
-                  confirm(`Permanently delete ${s.full_name}? This deletes their login account, profile, uploaded photos, private ratings, notes and other account data. This cannot be undone. If deletion is interrupted, retry the same action to finish.`) &&
+                  confirm(`Delete ${s.full_name}? This also removes them from everyone's stats.`) &&
                   run(async () => {
                     await api.adminDeleteStudent(s.id)
                     removeStudent(s.id)
                   })
                 }
               >
-                Delete account
+                Delete
               </button>
             </div>
             {editing === s.id && (

@@ -3,7 +3,7 @@
 Una app hecha por estudiantes del MPP (Blavatnik School, Oxford), para estudiantes del MPP: te permite llevar registro de qué compañeros has conocido y cuánto, marcar a quienes quieres conocer y ver tus estadísticas.
 
 - **Niveles**: 0 No se conocen · 1 Saludo · 2 Conversación inicial · 3 Gran conversación · 4 Amigos
-- **Tus registros personales**: cada cuenta solo puede leer directamente sus propias filas (Row Level Security). Compartir niveles de familiaridad en las estadísticas de Cohort es opcional: se explica qué se comparte y que los cambios en las cifras pueden permitir inferencias. Las notas y ★ no se incluyen. Puedes retirar tu elección en Cohort.
+- **Todo lo tuyo es privado**: niveles, ★, notas e historial. La base de datos solo permite que cada cuenta lea sus propias filas (Row Level Security).
 - **Login** con código enviado al correo de usuario de Oxford (`abcd1234@ox.ac.uk`; los alias `nombre@college.ox.ac.uk` no se aceptan, para que nadie tenga dos cuentas). Luego cada persona se busca en la lista y dice "este soy yo" (una sola vez).
 - **Web instalable** en iPhone/Android (PWA): Compartir → *Añadir a pantalla de inicio*.
 
@@ -34,10 +34,6 @@ Sin variables de Supabase, la app corre con 40 compañeros ficticios guardados e
    - **Gmail** con una *App Password* (`smtp.gmail.com`, puerto 465).
    Luego, en **Authentication → Rate Limits**, sube "emails per hour" a ~100.
 
-### Privacidad y borrado de cuentas
-
-Antes de desplegar esta versión, sigue [la guía de migración y despliegue](docs/privacy-patch-deployment.md): aplica el SQL y despliega la Edge Function `delete-student`. El borrado desde Admin elimina la cuenta y sus datos alojados, no solo el perfil. `npm test` comprueba las reglas de privacidad con datos ficticios.
-
 ### 2. Cargar a los compañeros
 ```bash
 npm run scrape    # nombres oficiales del directorio BSG (Rol: MPP, Año: 2026) → private/bsg-names.json
@@ -55,7 +51,7 @@ El importador cruza el Excel con la lista oficial: quienes están en el Excel co
 Listo: comparte el link con el curso.
 
 ## Administración
-- Si entras con un correo que está en `app_admins`, verás la pestaña **Admin**. Desde ahí puedes agregar estudiantes, editar perfiles (incluidas fotos), liberar un perfil que alguien reclamó por error ("Unclaim") y borrar cuentas con sus datos alojados.
+- Si entras con un correo que está en `app_admins`, verás la pestaña **Admin**. Desde ahí puedes agregar estudiantes, editar perfiles (incluidas fotos), liberar un perfil que alguien reclamó por error ("Unclaim") y borrar perfiles.
 - Las listas cerradas (colleges, intereses de política, hobbies, idiomas, países) están en [`src/lib/options.ts`](src/lib/options.ts). Los estudiantes pueden agregar hobbies e idiomas nuevos con "Other".
 - Para permitir un correo que no es de Oxford (por ejemplo, para pruebas): `insert into public.allowed_emails values ('alguien@gmail.com');`
 

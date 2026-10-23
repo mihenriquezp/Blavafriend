@@ -23,7 +23,7 @@ export interface Student {
   undergrad_fields: string[]
   /** 'faculty' = faculty or staff: listed in People, left out of every statistic. */
   role: 'student' | 'faculty'
-  /** Birthday: day and month are shown in the app; the optional year is returned only to the profile owner. */
+  /** Birthday: day and month are shown in the app; the year is optional and never shown. */
   birth_day: number | null
   birth_month: number | null
   birth_year: number | null
@@ -56,15 +56,8 @@ export interface CustomTag {
   label: string
 }
 
-export interface CohortConsent {
-  enabled: boolean
-  version: string
-  updated_at: string | null
-}
-
-/** Shared aggregates of connections between consenting students only. */
+/** Anonymous, cohort-wide aggregates (see public.cohort_overview). */
 export interface CohortData {
-  consent_version: string
   students: number
   claimed: number
   /** People who have marked at least one classmate. */
@@ -359,8 +352,6 @@ export interface Api {
   listEvents(): Promise<RelationshipEvent[]>
 
   getCohort(): Promise<CohortData>
-  getCohortConsent(): Promise<CohortConsent>
-  setCohortConsent(enabled: boolean): Promise<CohortConsent>
 
   listCalEvents(): Promise<CalEvent[]>
   saveCalEvent(input: CalEventInput, id?: string): Promise<CalEvent>
@@ -429,6 +420,5 @@ export interface Api {
 
   adminCreateStudent(fullName: string): Promise<Student>
   adminDeleteStudent(id: string): Promise<void>
-  adminPendingDeletions(): Promise<{ student_id: string; requested_at: string }[]>
   adminUnclaimStudent(id: string): Promise<Student>
 }
