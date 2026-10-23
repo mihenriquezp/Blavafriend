@@ -12,7 +12,7 @@ export default function MyProfile() {
       <div>
         <h1 className="font-display text-2xl font-bold text-oxford-900">Your profile</h1>
         <p className="text-sm text-gray-500">
-          This is what classmates see. Everything except your name is optional.
+          Your profile is shared with classmates; your birth year is private. Everything except your name is optional.
         </p>
       </div>
       <Card>

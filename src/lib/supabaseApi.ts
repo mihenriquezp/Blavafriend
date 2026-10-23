@@ -1,5 +1,6 @@
 import { createClient, type User } from '@supabase/supabase-js'
 import { COUNTRY_CONTINENT } from './options'
+import { COHORT_CONSENT_VERSION } from './cohortConsent'
 import type {
   Api,
   CalEvent,
@@ -8,6 +9,7 @@ import type {
   Newsletter,
   NewsletterStats,
   CohortData,
+  CohortConsent,
   CustomTag,
   Notice,
   Relationship,
@@ -71,11 +73,17 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
 
     async listStudents() {
-      return check(await sb.from('students').select('*').order('full_name')) as Student[]
+      const students = check(await sb.from('students').select('*').order('full_name')) as Student[]
+      // RLS returns only the caller's private row, including for app admins.
+      const privateRows = check(await sb.from('student_private').select('student_id,birth_year'))
+      const years = new Map((privateRows ?? []).map((row) => [row.student_id, row.birth_year]))
+      return students.map((student) => ({ ...student, birth_year: years.get(student.id) ?? null }))
     },
 
     async claimStudent(studentId) {
-      return check(await sb.rpc('claim_student', { p_student_id: studentId })) as Student
+      const student = check(await sb.rpc('claim_student', { p_student_id: studentId })) as Student
+      const privateRow = check(await sb.from('student_private').select('birth_year').eq('student_id', student.id).maybeSingle())
+      return { ...student, birth_year: privateRow?.birth_year ?? null }
     },
 
     async createMyStudent(fullName) {
@@ -83,7 +91,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
 
     async updateStudent(id, patch) {
-      return check(await sb.from('students').update(patch).eq('id', id).select().single()) as Student
+      return check(await sb.rpc('update_student_profile', { p_id: id, p_patch: patch })) as Student
     },
 
     async uploadPhoto(studentId, file) {
@@ -123,6 +131,14 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
 
     async getCohort() {
       return check(await sb.rpc('cohort_overview', { p_continents: COUNTRY_CONTINENT })) as CohortData
+    },
+
+    async getCohortConsent() {
+      return check(await sb.rpc('get_cohort_consent')) as CohortConsent
+    },
+
+    async setCohortConsent(enabled) {
+      return check(await sb.rpc('set_cohort_consent', { p_enabled: enabled, p_version: COHORT_CONSENT_VERSION })) as CohortConsent
     },
 
     async listCalEvents() {
@@ -327,8 +343,13 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       return check(await sb.from('students').insert({ full_name: fullName }).select().single()) as Student
     },
 
+    async adminPendingDeletions() {
+      return check(await sb.rpc('admin_pending_deletions')) ?? []
+    },
+
     async adminDeleteStudent(id) {
-      check(await sb.from('students').delete().eq('id', id))
+      const result = check(await sb.functions.invoke('delete-student', { body: { student_id: id } }))
+      if (result?.deleted !== true) throw new Error('Account deletion is incomplete. Please retry.')
     },
 
     async adminUnclaimStudent(id) {

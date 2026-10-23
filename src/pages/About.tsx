@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { InstallGuide } from '../components/InstallGuide'
+import { CohortSharingNotice } from '../components/CohortSharing'
 import { HowItWorks } from '../components/Intro'
 import { Card, btnSecondary } from '../components/ui'
 import { LEVELS } from '../lib/options'
@@ -28,27 +29,26 @@ export default function About() {
         <ul className="list-disc space-y-1 pl-5">
           <li>
             Your <b>levels</b> ({LEVELS.map((l) => l.short).join(', ')}), your <b>★ want-to-meet</b> marks, your{' '}
-            <b>notes</b> and your <b>stats</b> are visible only to you. No one else can see them in the app, including the
-            admin: the database only lets the account that created a row read it. (Like any web app, whoever runs the
+            <b>notes</b> and your personal <b>stats</b> can only be directly read by your account in the app. App admins
+            have no extra access. If you opt in, levels also contribute to shared Cohort statistics as explained below. (Like any web app, whoever runs the
             hosting account could technically open the raw database; the admin commits never to do that.)
           </li>
-          <li>Nobody is ever told how you rated them.</li>
+          <li>The app does not send notifications about your levels. Shared statistics can sometimes allow inferences about them.</li>
           <li>
             What you tick off in the weekly newsletter checklist is private too: only you see it. The admin only sees
             totals, such as how many people opened the checklist and how far people got on average.
           </li>
         </ul>
-        <h2 className="pt-2 font-semibold text-oxford-900">Counted anonymously in “Cohort”</h2>
-        <ul className="list-disc space-y-1 pl-5">
-          <li>
-            Everyone’s levels are combined into anonymous totals for the Cohort tab: the Connection Index, weekly
-            progress, an unnamed network of dots and how much continents mix.
-          </li>
-          <li>
-            It never shows names, who rated whom or anyone’s individual levels. Dots are reshuffled on every visit, your
-            own dot only shows the ties you marked, and groups smaller than 5 people are hidden.
-          </li>
-        </ul>
+        <h2 className="pt-2 font-semibold text-oxford-900">Optional sharing in Cohort</h2>
+        <CohortSharingNotice />
+        <p><Link to="/cohort" className="text-oxford-700 underline">Review or change your sharing choice in Cohort.</Link></p>
+        <h2 className="pt-2 font-semibold text-oxford-900">Deleting your account</h2>
+        <p>
+          Ask an admin to delete your account. This removes your login, profile, uploaded photos and account data
+          from the live service, including private ratings, notes and tool backups. An interrupted deletion is
+          kept pending until cleanup finishes. Browser storage, downloaded copies and provider backups may remain;
+          clear this site’s data on your devices to remove local tool data.
+        </p>
         <h2 className="pt-2 font-semibold text-oxford-900">Coffee roulette</h2>
         <ul className="list-disc space-y-1 pl-5">
           <li>
@@ -61,7 +61,7 @@ export default function About() {
         <h2 className="pt-2 font-semibold text-oxford-900">What's shared with the cohort</h2>
         <ul className="list-disc space-y-1 pl-5">
           <li>
-            Your profile (name, photo, role, college, countries, birthday (day and month only; the year is never shown), interests, languages, intro and any social links you add)
+            Your profile (name, photo, role, college, countries, birthday (day and month only; only you can access the year), interests, languages, intro and any social links you add)
             is visible to classmates who sign in with their Oxford account.
           </li>
           <li>Everything except your name is optional, and you can edit or remove it at any time from your profile.</li>
