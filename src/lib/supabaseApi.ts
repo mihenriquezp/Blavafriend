@@ -1,5 +1,6 @@
-import { createClient, type User } from '@supabase/supabase-js'
+import { createClient, type SupabaseClientOptions, type User } from '@supabase/supabase-js'
 import { COUNTRY_CONTINENT } from './options'
+import { COHORT_CONSENT_VERSION } from './cohortConsent'
 import type {
   Api,
   CalEvent,
@@ -8,6 +9,7 @@ import type {
   Newsletter,
   NewsletterStats,
   CohortData,
+  CohortConsent,
   CustomTag,
   Notice,
   Relationship,
@@ -26,6 +28,19 @@ import type {
 
 const REL_COLUMNS = 'student_id, level, starred, note, updated_at'
 const TOOL_COLS = 'id, title, description, icon, remove_on, hidden, created_at'
+// Never request the legacy birth_year column, even against an older database.
+const STUDENT_COLUMNS = 'id,full_name,age,country_residence,country_origin,job_title,college,family_status,policy_interests,hobbies,languages,bio,photo_url,linkedin,instagram,x_handle,whatsapp,nickname,gender,undergrad_fields,role,birth_day,birth_month,user_id,updated_at'
+
+function missingDatabaseObject(error: { code?: string; message: string } | null, name: string) {
+  return !!error && ['PGRST205', 'PGRST202', '42P01', '42883'].includes(error.code ?? '') && error.message.includes(name)
+}
+
+function privateYears(result: { data: { student_id: string; birth_year: number | null }[] | null; error: { code?: string; message: string } | null }) {
+  // A deploy/cache mismatch must not take down People, Faculty or personal Stats.
+  // Missing private data stays unavailable; never fall back to shared birth years.
+  if (missingDatabaseObject(result.error, 'student_private')) return new Map<string, number | null>()
+  return new Map((check(result) ?? []).map((row) => [row.student_id, row.birth_year]))
+}
 
 function toSessionUser(u: User | null | undefined): SessionUser | null {
   return u ? { id: u.id, email: u.email ?? '' } : null
@@ -36,8 +51,8 @@ function check<T>(res: { data: T; error: { message: string } | null }): T {
   return res.data
 }
 
-export function createSupabaseApi(url: string, anonKey: string): Api {
-  const sb = createClient(url, anonKey, { auth: { persistSession: true } })
+export function createSupabaseApi(url: string, anonKey: string, options?: SupabaseClientOptions<'public'>): Api {
+  const sb = createClient(url, anonKey, { ...options, auth: { persistSession: true, ...options?.auth } })
 
   return {
     mode: 'supabase',
@@ -71,11 +86,16 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
 
     async listStudents() {
-      return check(await sb.from('students').select('*').order('full_name')) as Student[]
+      const students = check(await sb.from('students').select(STUDENT_COLUMNS).order('full_name')) as Student[]
+      // RLS returns only the caller's private row, including for app admins.
+      const years = privateYears(await sb.from('student_private').select('student_id,birth_year'))
+      return students.map((student) => ({ ...student, birth_year: years.get(student.id) ?? null }))
     },
 
     async claimStudent(studentId) {
-      return check(await sb.rpc('claim_student', { p_student_id: studentId })) as Student
+      const student = check(await sb.rpc('claim_student', { p_student_id: studentId })) as Student
+      const years = privateYears(await sb.from('student_private').select('student_id,birth_year').eq('student_id', student.id))
+      return { ...student, birth_year: years.get(student.id) ?? null }
     },
 
     async createMyStudent(fullName) {
@@ -83,7 +103,10 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
 
     async updateStudent(id, patch) {
-      return check(await sb.from('students').update(patch).eq('id', id).select().single()) as Student
+      const result = await sb.rpc('update_student_profile', { p_id: id, p_patch: patch })
+      if (missingDatabaseObject(result.error, 'update_student_profile'))
+        throw new Error('Profile editing is temporarily unavailable while an update finishes. Please try again shortly.')
+      return check(result) as Student
     },
 
     async uploadPhoto(studentId, file) {
@@ -123,6 +146,14 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
 
     async getCohort() {
       return check(await sb.rpc('cohort_overview', { p_continents: COUNTRY_CONTINENT })) as CohortData
+    },
+
+    async getCohortConsent() {
+      return check(await sb.rpc('get_cohort_consent')) as CohortConsent
+    },
+
+    async setCohortConsent(enabled) {
+      return check(await sb.rpc('set_cohort_consent', { p_enabled: enabled, p_version: COHORT_CONSENT_VERSION })) as CohortConsent
     },
 
     async listCalEvents() {
@@ -327,8 +358,13 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       return check(await sb.from('students').insert({ full_name: fullName }).select().single()) as Student
     },
 
+    async adminPendingDeletions() {
+      return check(await sb.rpc('admin_pending_deletions')) ?? []
+    },
+
     async adminDeleteStudent(id) {
-      check(await sb.from('students').delete().eq('id', id))
+      const result = check(await sb.functions.invoke('delete-student', { body: { student_id: id } }))
+      if (result?.deleted !== true) throw new Error('Account deletion is incomplete. Please retry.')
     },
 
     async adminUnclaimStudent(id) {

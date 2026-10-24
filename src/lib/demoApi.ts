@@ -2,11 +2,13 @@
 // and lives in this browser's localStorage, so anyone can try the app safely.
 import { COLLEGES, COUNTRIES, GENDER_OPTIONS, HOBBIES, LANGUAGES, POLICY_INTERESTS, UNDERGRAD_FIELDS, type Level } from './options'
 import { computeCohort, type Rating } from './cohort'
+import { COHORT_CONSENT_VERSION } from './cohortConsent'
 import { addDays, drawAt, londonToday, matchGroups, openRound } from './coffee'
 import type {
   Api,
   CalEvent,
   CoffeeState,
+  CohortConsent,
   CustomTag,
   EngagementData,
   FormalSlot,
@@ -26,6 +28,7 @@ const KEY = 'blavafriend-demo-v6'
 const DEMO_USER: SessionUser = { id: 'demo-user', email: 'demo1234@ox.ac.uk' }
 
 interface DemoState {
+  cohortConsent?: CohortConsent
   signedIn: boolean
   students: Student[]
   relationships: Relationship[]
@@ -454,7 +457,20 @@ export function createDemoApi(): Api {
         }
       if (me)
         for (const e of state.events) ratings.push({ rater: me.id, ratee: e.student_id, level: e.to_level, at: e.created_at })
-      return computeCohort(state.students, ratings, me?.id ?? null)
+      // Fictional classmates are willing participants; the real demo visitor opts in explicitly.
+      const consenting = new Set(others.map((student) => student.id))
+      if (me && state.cohortConsent?.enabled && state.cohortConsent.version === COHORT_CONSENT_VERSION) consenting.add(me.id)
+      return computeCohort(state.students, ratings, me?.id ?? null, consenting)
+    },
+    async getCohortConsent() {
+      const choice = state.cohortConsent
+      return { enabled: choice?.version === COHORT_CONSENT_VERSION && choice.enabled,
+        version: COHORT_CONSENT_VERSION, updated_at: choice?.updated_at ?? null }
+    },
+    async setCohortConsent(enabled) {
+      state.cohortConsent = { enabled, version: COHORT_CONSENT_VERSION, updated_at: new Date().toISOString() }
+      save()
+      return clone(state.cohortConsent)
     },
 
     async listCalEvents() {
@@ -893,9 +909,16 @@ export function createDemoApi(): Api {
       save()
       return clone(s)
     },
+    async adminPendingDeletions() {
+      return []
+    },
     async adminDeleteStudent(id) {
+      if (state.students.find((student) => student.id === id)?.user_id === DEMO_USER.id) {
+        throw new Error('Remove the admin role before deleting this account')
+      }
       state.students = state.students.filter((s) => s.id !== id)
       state.relationships = state.relationships.filter((r) => r.student_id !== id)
+      state.events = state.events.filter((event) => event.student_id !== id)
       save()
     },
     async adminUnclaimStudent(id) {

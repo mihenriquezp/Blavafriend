@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { CohortSharing } from '../components/CohortSharing'
+import { COHORT_CONSENT_VERSION } from '../lib/cohortConsent'
 import { ProgressChart } from '../components/charts'
 import { Constellation } from '../components/Constellation'
 import { Card, Spinner } from '../components/ui'
@@ -31,6 +33,8 @@ export default function Cohort() {
 
   if (error) return <p className="text-red-700">Couldn’t load the cohort view: {error}</p>
   if (!data) return <Spinner label="Connecting the dots…" />
+  if (data.consent_version !== COHORT_CONSENT_VERSION)
+    return <p>Shared statistics are awaiting the consent update. Please try again later.</p>
 
   const totalPairs = (data.students * (data.students - 1)) / 2
   const index = pct(data.pairs.met, totalPairs)
@@ -43,121 +47,128 @@ export default function Cohort() {
       <div>
         <h1 className="font-display text-2xl font-bold text-oxford-900">Our cohort 🌐</h1>
         <p className="text-sm text-gray-500">
-          Who we are, and how well we all know each other. Connections are counted anonymously.
+          Who we are, and the connections shared by classmates who choose to participate.
         </p>
       </div>
 
       <WhoWeAre students={cohortStudents} />
+      <CohortSharing onChange={() => api.getCohort().then(setData, (e) => setError(String(e)))} />
+      <p className="text-sm text-gray-600">Connection statistics below cover {data.students} participating students, not the entire directory.</p>
+      {data.students < 2 ? (
+        <Card>At least two students need to opt in before connection statistics are available.</Card>
+      ) : (
+        <>
+          <Card>
+            <div className="text-sm font-medium text-gray-500">Cohort Connection Index</div>
+            <div className="flex items-baseline gap-3">
+              <span className="font-display text-5xl font-bold text-oxford-900 tabular-nums">{index.toFixed(index < 10 ? 1 : 0)}%</span>
+              <span className="text-sm text-gray-600">
+                of {fmt(totalPairs)} possible pairs of participating classmates have met
+              </span>
+            </div>
+            <MilestoneBar value={index} />
+            <p className="mt-2 text-sm text-gray-600">
+              {next ? (
+                <>
+                  Next milestone: <b>{next}%</b>, just <b>{fmt(toNext)}</b> more pairs to go.
+                </>
+              ) : (
+                <>All milestones reached. What a cohort! 🎉</>
+              )}
+            </p>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+              <Stat value={fmt(data.pairs.met)} label="pairs have met" />
+              <Stat value={fmt(data.pairs.great)} label="great conversations" />
+              <Stat value={fmt(data.pairs.friends)} label="friendships 💙" />
+            </div>
+            <p className="mt-3 text-xs text-gray-500">
+              On average each participant has met <b>{avg.toFixed(1)}</b> classmates. Based on the <b>{data.trackers}</b> of{' '}
+              {data.students} participants who have marked at least one participating classmate. This is a picture of
+              participating connections, not a measure of how close the whole cohort is.
+            </p>
+          </Card>
 
-      <Card>
-        <div className="text-sm font-medium text-gray-500">Cohort Connection Index</div>
-        <div className="flex items-baseline gap-3">
-          <span className="font-display text-5xl font-bold text-oxford-900 tabular-nums">{index.toFixed(index < 10 ? 1 : 0)}%</span>
-          <span className="text-sm text-gray-600">
-            of all {fmt(totalPairs)} possible pairs of classmates have met
-          </span>
-        </div>
-        <MilestoneBar value={index} />
-        <p className="mt-2 text-sm text-gray-600">
-          {next ? (
-            <>
-              Next milestone: <b>{next}%</b>, just <b>{fmt(toNext)}</b> more pairs to go.
-            </>
-          ) : (
-            <>All milestones reached. What a cohort! 🎉</>
-          )}
-        </p>
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <Stat value={fmt(data.pairs.met)} label="pairs have met" />
-          <Stat value={fmt(data.pairs.great)} label="great conversations" />
-          <Stat value={fmt(data.pairs.friends)} label="friendships 💙" />
-        </div>
-        <p className="mt-3 text-xs text-gray-500">
-          On average each of us has met <b>{avg.toFixed(1)}</b> classmates. Based on the <b>{data.trackers}</b> of{' '}
-          {data.students} classmates who have started marking people in Blavafriend, so the more of us join, the more
-          accurate it gets.
-        </p>
-      </Card>
+          <Card>
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-semibold text-oxford-900">The constellation</h2>
+              <div className="flex gap-1" role="radiogroup" aria-label="Which ties to show">
+                {[
+                  [1, 'All ties'],
+                  [3, 'Great chats +'],
+                  [4, 'Friends'],
+                ].map(([v, label]) => (
+                  <button
+                    key={v}
+                    role="radio"
+                    aria-checked={minLevel === v}
+                    onClick={() => setMinLevel(v as number)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${
+                      minLevel === v ? 'bg-oxford-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="mb-3 text-xs text-gray-500">
+              Each dot is a participating classmate (no names), each line a pair who’ve met. Dots move around every time you open this
+              page. Your dot <span className="font-semibold text-gold">●</span> only shows the ties you marked yourself.
+            </p>
+            <Constellation size={data.students} edges={data.edges} me={data.me} minLevel={minLevel} />
+            <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+              {[
+                ['Said hello', 'var(--color-lvl-1)'],
+                ['First conversation', 'var(--color-lvl-2)'],
+                ['Great conversation', 'var(--color-lvl-3)'],
+                ['Friends', 'var(--color-lvl-4)'],
+              ].map(([label, color], i) =>
+                i + 1 >= minLevel ? (
+                  <li key={label} className="flex items-center gap-1.5">
+                    <span className="h-0.5 w-4 rounded" style={{ background: color, height: 1 + (i + 1) * 0.6 }} />
+                    {label}
+                  </li>
+                ) : null,
+              )}
+            </ul>
+          </Card>
 
-      <Card>
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold text-oxford-900">The constellation</h2>
-          <div className="flex gap-1" role="radiogroup" aria-label="Which ties to show">
-            {[
-              [1, 'All ties'],
-              [3, 'Great chats +'],
-              [4, 'Friends'],
-            ].map(([v, label]) => (
-              <button
-                key={v}
-                role="radio"
-                aria-checked={minLevel === v}
-                onClick={() => setMinLevel(v as number)}
-                className={`rounded-full px-3 py-1 text-xs font-medium ${
-                  minLevel === v ? 'bg-oxford-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <p className="mb-3 text-xs text-gray-500">
-          Each dot is a classmate (no names), each line a pair who’ve met. Dots move around every time you open this
-          page. Your dot <span className="font-semibold text-gold">●</span> only shows the ties you marked yourself.
-        </p>
-        <Constellation size={data.students} edges={data.edges} me={data.me} minLevel={minLevel} />
-        <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-          {[
-            ['Said hello', 'var(--color-lvl-1)'],
-            ['First conversation', 'var(--color-lvl-2)'],
-            ['Great conversation', 'var(--color-lvl-3)'],
-            ['Friends', 'var(--color-lvl-4)'],
-          ].map(([label, color], i) =>
-            i + 1 >= minLevel ? (
-              <li key={label} className="flex items-center gap-1.5">
-                <span className="h-0.5 w-4 rounded" style={{ background: color, height: 1 + (i + 1) * 0.6 }} />
-                {label}
-              </li>
-            ) : null,
-          )}
-        </ul>
-      </Card>
+          <Card>
+            <h2 className="mb-3 font-semibold text-oxford-900">Week by week</h2>
+            {data.weekly.length ? (
+              <ProgressChart
+                points={data.weekly.map((w) => ({ weekStart: new Date(`${w.week}T00:00:00`), met: w.met, positive: w.great }))}
+                total={totalPairs}
+                unit="pairs"
+              />
+            ) : (
+              <p className="text-sm text-gray-500">Progress will show up here once participating classmates start marking each other.</p>
+            )}
+          </Card>
 
-      <Card>
-        <h2 className="mb-3 font-semibold text-oxford-900">Week by week</h2>
-        {data.weekly.length ? (
-          <ProgressChart
-            points={data.weekly.map((w) => ({ weekStart: new Date(`${w.week}T00:00:00`), met: w.met, positive: w.great }))}
-            total={totalPairs}
-            unit="pairs"
-          />
-        ) : (
-          <p className="text-sm text-gray-500">The cohort’s progress will show up here once people start marking classmates.</p>
-        )}
-      </Card>
-
-      <Card>
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold text-oxford-900">Bridges across continents</h2>
-          {data.groups.length >= 2 && (
-            <button className="text-xs text-oxford-500 underline" onClick={() => setAsTable((t) => !t)}>
-              {asTable ? 'Show as map' : 'Show as table'}
-            </button>
-          )}
-        </div>
-        <p className="mb-3 text-xs text-gray-500">
-          How well we know each other within and across our continents of origin. Continents with fewer than 5 of us
-          aren’t shown, to keep everyone anonymous.
-        </p>
-        {data.groups.length < 2 ? (
-          <p className="text-sm text-gray-500">Not enough people have added their country yet.</p>
-        ) : asTable ? (
-          <MixingMatrix data={data} />
-        ) : (
-          <WorldMap data={data} />
-        )}
-      </Card>
+          <Card>
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-semibold text-oxford-900">Bridges across continents</h2>
+              {data.groups.length >= 2 && (
+                <button className="text-xs text-oxford-500 underline" onClick={() => setAsTable((t) => !t)}>
+                  {asTable ? 'Show as map' : 'Show as table'}
+                </button>
+              )}
+            </div>
+            <p className="mb-3 text-xs text-gray-500">
+              Connections among participants within and across their continents of origin. Groups smaller than 5
+              are omitted. Neither this threshold nor shuffled dots guarantees anonymity.
+            </p>
+            {data.groups.length < 2 ? (
+              <p className="text-sm text-gray-500">Not enough people have added their country yet.</p>
+            ) : asTable ? (
+              <MixingMatrix data={data} />
+            ) : (
+              <WorldMap data={data} />
+            )}
+          </Card>
+        </>
+      )}
     </div>
   )
 }
