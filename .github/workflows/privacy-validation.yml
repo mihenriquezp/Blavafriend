@@ -1,0 +1,64 @@
+name: Privacy release validation
+on:
+  push:
+    branches: [main, 'codex/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: privacy-validation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test && npm run lint
+      - name: Install the PostgreSQL client for local migrations
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.122.0
+      - run: node scripts/prepare-local-integration.mjs
+      - name: Start isolated Auth, Postgres, Storage and email capture
+        run: supabase start --workdir private/integration-stack
+      - name: Export local-only test configuration
+        shell: bash
+        run: |
+          supabase status --workdir private/integration-stack -o env > private/integration-stack/status.env
+          set -a
+          source private/integration-stack/status.env
+          set +a
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          echo "::add-mask::$ANON_KEY"
+          echo "VITE_SUPABASE_URL=http://127.0.0.1:54321" >> "$GITHUB_ENV"
+          echo "VITE_SUPABASE_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+          echo "TEST_SUPABASE_SERVICE_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
+      - name: Serve the actual deletion function
+        run: |
+          supabase functions serve delete-student --workdir private/integration-stack --env-file private/integration-stack/function.env > private/integration-stack/functions.log 2>&1 &
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Real login and privacy integration tests
+        run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: synthetic-integration-results
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+      - name: Stop isolated services
+        if: always()
+        run: supabase stop --workdir private/integration-stack

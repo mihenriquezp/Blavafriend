@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "test": "tsc -p tsconfig.tests.json && node --import tsx --test tests/*.test.ts",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
@@ -12,7 +13,9 @@
     "scrape": "tsx scripts/scrape-bsg.ts",
     "scrape:faculty": "tsx scripts/scrape-faculty.ts",
     "flags": "tsx scripts/copy-flags.ts",
-    "world": "tsx scripts/build-world.ts"
+    "world": "tsx scripts/build-world.ts",
+    "test:integration:prepare": "node scripts/prepare-local-integration.mjs",
+    "test:integration": "playwright test"
   },
   "dependencies": {
     "@kenjiuno/msgreader": "^1.28.0",
@@ -26,6 +29,8 @@
     "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.11",
+    "@playwright/test": "1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/d3-force": "^3.0.10",
     "@types/d3-geo": "^3.1.1",
@@ -39,6 +44,7 @@
     "exceljs": "^4.4.0",
     "i18n-iso-countries": "^7.14.0",
     "oxlint": "^1.81.0",
+    "supabase": "2.122.0",
     "tailwindcss": "^4.3.3",
     "topojson-client": "^3.1.0",
     "tsx": "^4.23.15",

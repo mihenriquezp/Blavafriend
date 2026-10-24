@@ -8,7 +8,8 @@ import type { Student, StudentPatch } from '../lib/types'
 import { Avatar, CountryPicker, Field, TagPicker, btnPrimary, btnSecondary, inputCls } from './ui'
 
 export function ProfileForm({ student, onDone }: { student: Student; onDone?: () => void }) {
-  const { updateStudent, hobbyOptions, languageOptions, degreeOptions, addTag, isAdmin } = useStore()
+  const { updateStudent, hobbyOptions, languageOptions, degreeOptions, addTag, isAdmin, user } = useStore()
+  const isOwner = student.user_id === user?.id
   const [draft, setDraft] = useState<Student>(student)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -46,7 +47,7 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
         undergrad_fields: draft.undergrad_fields,
         birth_day: draft.birth_month ? draft.birth_day : null,
         birth_month: draft.birth_day ? draft.birth_month : null,
-        birth_year: draft.birth_day && draft.birth_month ? draft.birth_year : null,
+        ...(isOwner ? { birth_year: draft.birth_day && draft.birth_month ? draft.birth_year : null } : {}),
         ...(isAdmin ? { role: draft.role } : {}),
       }
       await updateStudent(student.id, patch)
@@ -155,8 +156,8 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
             className={inputCls}
           />
         </Field>
-        <Field label="Birthday (optional)" hint="Day and month are enough. Only these are shown; the year is never shown." group>
-          <div className="grid grid-cols-[5.5rem_1fr_6rem] gap-2">
+        <Field label="Birthday (optional)" hint="Day and month are shared. The optional year is private to the profile owner." group>
+          <div className={`grid gap-2 ${isOwner ? 'grid-cols-[5.5rem_1fr_6rem]' : 'grid-cols-[5.5rem_1fr]'}`}>
             <select
               aria-label="Birthday day"
               value={draft.birth_day ?? ''}
@@ -187,16 +188,18 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
                 </option>
               ))}
             </select>
-            <input
-              aria-label="Birthday year (optional)"
-              type="number"
-              min={1930}
-              max={2015}
-              placeholder="Year"
-              value={draft.birth_year ?? ''}
-              onChange={(e) => set('birth_year', e.target.value ? Number(e.target.value) : null)}
-              className={inputCls}
-            />
+            {isOwner && (
+              <input
+                aria-label="Birthday year (private, optional)"
+                type="number"
+                min={1930}
+                max={2015}
+                placeholder="Year"
+                value={draft.birth_year ?? ''}
+                onChange={(e) => set('birth_year', e.target.value ? Number(e.target.value) : null)}
+                className={inputCls}
+              />
+            )}
           </div>
         </Field>
         <Field label="Gender (optional)">

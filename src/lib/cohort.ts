@@ -1,4 +1,5 @@
 // Same rules as public.cohort_overview(), used by the local demo. Keep in sync.
+import { COHORT_CONSENT_VERSION } from './cohortConsent'
 import { continentOf } from './options'
 import type { CohortData, Student } from './types'
 
@@ -40,9 +41,9 @@ function pairLevels(ratings: Rating[]) {
   return pairs
 }
 
-export function computeCohort(everyone: Student[], allRatings: Rating[], meId: string | null, now = new Date()): CohortData {
+export function computeCohort(everyone: Student[], allRatings: Rating[], meId: string | null, consentingIds: ReadonlySet<string>, now = new Date()): CohortData {
   // Only students count: faculty/staff and ratings to or from them are left out.
-  const students = everyone.filter((s) => s.role !== 'faculty')
+  const students = everyone.filter((s) => s.role !== 'faculty' && consentingIds.has(s.id))
   const ids = new Set(students.map((s) => s.id))
   const ratings = allRatings.filter((r) => ids.has(r.rater) && ids.has(r.ratee))
   const node = new Map(shuffle(students).map((s, i) => [s.id, i]))
@@ -105,6 +106,7 @@ export function computeCohort(everyone: Student[], allRatings: Rating[], meId: s
 
   const levels = [...pairs.values()].map((p) => p.level)
   return {
+    consent_version: COHORT_CONSENT_VERSION,
     students: students.length,
     claimed: students.filter((s) => s.user_id).length,
     trackers: new Set(ratings.filter((r) => r.level > 0).map((r) => r.rater)).size,
