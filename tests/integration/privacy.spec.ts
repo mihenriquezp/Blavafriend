@@ -49,6 +49,14 @@ async function loginInBrowser(page: Page, email: string) {
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await expect(page.getByRole('link', { name: 'People', exact: true }).first()).toBeVisible({ timeout: 30_000 })
   await expect(page.getByText("Couldn't load data:", { exact: false })).toHaveCount(0)
+  // Follow the actual first-login tour; otherwise its modal blocks navigation.
+  const tour = page.getByRole('dialog')
+  for (let step = 0; step < 8 && await tour.isVisible(); step++) {
+    const next = tour.getByRole('button', { name: 'Next →', exact: true })
+    if (await next.isVisible()) await next.click()
+    else await tour.getByRole('button', { name: /Got it/ }).click()
+  }
+  await expect(tour).toHaveCount(0)
 }
 
 async function privateRows(sb: SupabaseClient) {
