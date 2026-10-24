@@ -42,9 +42,9 @@ async function loginInBrowser(page: Page, email: string) {
   await expect.poll(async () => {
     const response = await fetch(`http://127.0.0.1:54324/view/latest.txt?query=${encodeURIComponent(`to:${email}`)}`)
     const text = response.ok ? await response.text() : ''
-    code = text.match(/\b\d{6}\b/)?.[0] ?? ''
+    code = text.match(/\b\d{8}\b/)?.[0] ?? ''
     return code.length
-  }, { timeout: 30_000 }).toBe(6)
+  }, { timeout: 30_000 }).toBe(8)
   await page.getByLabel('Sign-in code').fill(code)
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await expect(page.getByRole('link', { name: 'People', exact: true }).first()).toBeVisible({ timeout: 30_000 })
