@@ -18,6 +18,8 @@ interface Store {
   dataLoading: boolean
   error: string | null
   isAdmin: boolean
+  /** A student rep: can open the reps' planner. */
+  isRep: boolean
   students: Student[]
   me: Student | null
   classmates: Student[]
@@ -49,6 +51,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [dataLoading, setDataLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isRep, setIsRep] = useState(false)
   const [students, setStudents] = useState<Student[]>([])
   const [rels, setRels] = useState<Relationship[]>([])
   const [events, setEvents] = useState<RelationshipEvent[]>([])
@@ -74,18 +77,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setDataLoading(true)
     setError(null)
     try {
-      const [s, r, e, t, admin] = await Promise.all([
+      const [s, r, e, t, admin, rep] = await Promise.all([
         api.listStudents(),
         api.listRelationships(),
         api.listEvents(),
         api.listCustomTags(),
         api.isAdmin(),
+        // Never let the reps' section break the app (e.g. before its SQL is run).
+        api.isRep().catch(() => false),
       ])
       setStudents(s)
       setRels(r)
       setEvents(e)
       setTags(t)
       setIsAdmin(admin)
+      setIsRep(rep)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -208,6 +214,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dataLoading,
     error,
     isAdmin,
+    isRep,
     students,
     me,
     classmates,

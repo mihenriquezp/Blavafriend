@@ -230,6 +230,45 @@ export interface EngagementData {
   weeks: { week: string; active: number; person_days: number; returning: number; new: number }[]
 }
 
+/** Student reps' planner (only reps can read or write it). */
+export type RepStatus = 'backlog' | 'not_started' | 'in_progress' | 'done'
+export type RepPriority = 'urgent' | 'high' | 'medium' | 'low'
+export interface RepLabel {
+  id: string
+  name: string
+  color: string
+}
+export interface RepSubtask {
+  id: string
+  task_id: string
+  title: string
+  done: boolean
+  position: number
+}
+export interface RepTask {
+  id: string
+  title: string
+  status: RepStatus
+  /** Order within its column (lower first). */
+  position: number
+  /** Owner's user id (one of the reps). */
+  assignee: string | null
+  label_id: string | null
+  priority: RepPriority
+  due_on: string | null
+  /** On this week's agenda (the Wednesday summary); on by default. */
+  on_agenda: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+  /** When it was last moved to Done. */
+  done_at: string | null
+  subtasks: RepSubtask[]
+}
+export type RepTaskPatch = Partial<
+  Pick<RepTask, 'title' | 'status' | 'position' | 'assignee' | 'label_id' | 'priority' | 'due_on' | 'on_agenda' | 'notes'>
+>
+
 /** A study session between classmates (see public.study_board). */
 export type StudyKind = 'teach' | 'need' | 'study'
 export interface StudySession {
@@ -341,6 +380,19 @@ export interface Api {
   signOut(): Promise<void>
 
   isAdmin(): Promise<boolean>
+  /** Whether I'm a student rep (and can open the reps' planner). */
+  isRep(): Promise<boolean>
+  /** The reps' user ids (for reps and admins). */
+  repMembers(): Promise<string[]>
+  adminSetRep(userId: string, on: boolean): Promise<void>
+  repBoard(): Promise<{ tasks: RepTask[]; labels: RepLabel[] }>
+  saveRepTask(patch: RepTaskPatch, id?: string): Promise<RepTask>
+  deleteRepTask(id: string): Promise<void>
+  saveRepLabel(input: Pick<RepLabel, 'name' | 'color'>, id?: string): Promise<RepLabel>
+  deleteRepLabel(id: string): Promise<void>
+  addRepSubtask(taskId: string, title: string, position: number): Promise<RepSubtask>
+  updateRepSubtask(id: string, patch: Partial<Pick<RepSubtask, 'title' | 'done'>>): Promise<void>
+  deleteRepSubtask(id: string): Promise<void>
   listStudents(): Promise<Student[]>
   claimStudent(studentId: string): Promise<Student>
   createMyStudent(fullName: string): Promise<Student>

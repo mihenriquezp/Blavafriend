@@ -15,7 +15,7 @@ const NAV = [
 ]
 
 export function Layout() {
-  const { me, isAdmin, notice } = useStore()
+  const { me, isAdmin, isRep, notice } = useStore()
   // Back up what was saved inside tools on this device, once signed in.
   const myId = me?.id
   useEffect(() => {
@@ -29,6 +29,16 @@ export function Layout() {
             <img src="/icon.svg" alt="" className="h-8 w-8 rounded-lg" />
             <span className="font-display text-xl font-bold tracking-tight">Blavafriend</span>
           </NavLink>
+          {isRep && (
+            <NavLink
+              to="/reps"
+              className={({ isActive }) =>
+                `rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-white/30 sm:hidden ${isActive ? 'bg-white text-oxford-900' : 'text-white'}`
+              }
+            >
+              🗂️ Reps
+            </NavLink>
+          )}
           <nav className="ml-4 hidden gap-1 sm:flex">
             {NAV.map((n) => (
               <NavLink
@@ -42,6 +52,16 @@ export function Layout() {
                 {n.label}
               </NavLink>
             ))}
+            {isRep && (
+              <NavLink
+                to="/reps"
+                className={({ isActive }) =>
+                  `rounded-lg px-3 py-1.5 text-sm font-medium ${isActive ? 'bg-white/15' : 'text-white/80 hover:text-white'}`
+                }
+              >
+                🗂️ Reps
+              </NavLink>
+            )}
             {isAdmin && (
               <NavLink
                 to="/admin"

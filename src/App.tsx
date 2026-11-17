@@ -14,6 +14,7 @@ import MyProfile from './pages/MyProfile'
 import NewsletterPage from './pages/Newsletter'
 import People from './pages/People'
 import Person from './pages/Person'
+import Reps from './pages/Reps'
 import Resources from './pages/Resources'
 import ToolPage from './pages/Tool'
 
@@ -49,6 +50,7 @@ function Gate() {
         <Route path="newsletter/:id" element={<NewsletterPage />} />
         <Route path="me" element={<MyProfile />} />
         <Route path="admin" element={<Admin />} />
+        <Route path="reps" element={<Reps />} />
         <Route path="about" element={<About />} />
         <Route path="welcome" element={<ReplayTour />} />
         <Route path="*" element={<Navigate to="/" replace />} />
