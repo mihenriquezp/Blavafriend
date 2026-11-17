@@ -209,7 +209,7 @@ export default function Reps() {
                 b && {
                   ...b,
                   labels: b.labels.filter((l) => l.id !== id),
-                  tasks: b.tasks.map((t) => (t.label_id === id ? { ...t, label_id: null } : t)),
+                  tasks: b.tasks.map((t) => ({ ...t, label_ids: t.label_ids.filter((l) => l !== id) })),
                 },
             )
           }
@@ -255,8 +255,9 @@ function BoardView({
 
   const shown = board.tasks.filter(
     (t) =>
-      (!owner || (owner === 'none' ? !t.assignee : t.assignee === (owner === 'me' ? me : owner))) &&
-      (!label || t.label_id === label) &&
+      (!owner ||
+        (owner === 'none' ? !t.assignees.length : t.assignees.includes((owner === 'me' ? me : owner) ?? ''))) &&
+      (!label || t.label_ids.includes(label)) &&
       (!priority || t.priority === priority) &&
       (!agendaOnly || t.on_agenda) &&
       (!q.trim() || t.title.toLowerCase().includes(q.trim().toLowerCase())),
@@ -387,8 +388,8 @@ function BoardView({
                   >
                     <TaskCard
                       task={t}
-                      label={labelOf(t.label_id)}
-                      owner={byUser(t.assignee)}
+                      labels={t.label_ids.flatMap((id) => labelOf(id) ?? [])}
+                      owners={t.assignees.flatMap((id) => byUser(id) ?? [])}
                       onOpen={() => onOpen(t.id)}
                     />
                   </li>
@@ -408,13 +409,13 @@ function BoardView({
 
 function TaskCard({
   task: t,
-  label,
-  owner,
+  labels,
+  owners,
   onOpen,
 }: {
   task: RepTask
-  label?: RepLabel
-  owner?: Student
+  labels: RepLabel[]
+  owners: Student[]
   onOpen: () => void
 }) {
   const done = t.subtasks.filter((s) => s.done).length
@@ -426,13 +427,12 @@ function TaskCard({
       onClick={onOpen}
       className="block w-full rounded-xl bg-white p-3 text-left shadow-sm ring-1 ring-gray-200 transition hover:ring-oxford-300"
     >
-      {label && (
-        <span
-          className="mb-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
-          style={{ background: label.color }}
-        >
-          {label.name}
-        </span>
+      {labels.length > 0 && (
+        <div className="mb-1.5 flex flex-wrap gap-1">
+          {labels.map((l) => (
+            <LabelChip key={l.id} label={l} />
+          ))}
+        </div>
       )}
       <div
         className={`text-sm font-semibold ${t.status === 'done' ? 'text-gray-500 line-through' : 'text-oxford-900'}`}
@@ -458,16 +458,40 @@ function TaskCard({
         {t.notes && <span title="Has notes">📝</span>}
         {t.on_agenda && <span title="On this week's agenda">📌</span>}
         <span className="ml-auto">
-          {owner ? (
-            <span title={owner.full_name}>
-              <Avatar name={owner.full_name} url={owner.photo_url} size={22} />
-            </span>
-          ) : (
-            <span className="text-gray-400">Unassigned</span>
-          )}
+          {owners.length ? <Owners people={owners} /> : <span className="text-gray-400">Unassigned</span>}
         </span>
       </div>
     </button>
+  )
+}
+
+function LabelChip({ label }: { label: RepLabel }) {
+  return (
+    <span
+      className="inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-white"
+      style={{ background: label.color }}
+    >
+      {label.name}
+    </span>
+  )
+}
+
+/** Overlapping photos of a task's owners (up to 3, then +N). */
+function Owners({ people }: { people: Student[] }) {
+  const shown = people.slice(0, 3)
+  return (
+    <span className="flex items-center -space-x-1.5" title={people.map((p) => p.full_name).join(', ')}>
+      {shown.map((p) => (
+        <span key={p.id} className="rounded-full ring-2 ring-white">
+          <Avatar name={p.full_name} url={p.photo_url} size={22} />
+        </span>
+      ))}
+      {people.length > 3 && (
+        <span className="grid h-[22px] w-[22px] place-items-center rounded-full bg-gray-200 text-[10px] font-semibold text-gray-700 ring-2 ring-white">
+          +{people.length - 3}
+        </span>
+      )}
+    </span>
   )
 }
 
@@ -664,20 +688,6 @@ function TaskDialog({
             ))}
           </select>
         </Prop>
-        <Prop label="Owner">
-          <select
-            value={t.assignee ?? ''}
-            onChange={(e) => onPatch({ assignee: e.target.value || null })}
-            className={sel}
-          >
-            <option value="">Unassigned</option>
-            {reps.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.student?.full_name ?? 'A rep'}
-              </option>
-            ))}
-          </select>
-        </Prop>
         <Prop label="Priority">
           <select
             value={t.priority}
@@ -690,31 +700,6 @@ function TaskDialog({
               </option>
             ))}
           </select>
-        </Prop>
-        <Prop label="Label">
-          <div className="flex gap-1.5">
-            <select
-              value={t.label_id ?? ''}
-              onChange={(e) => onPatch({ label_id: e.target.value || null })}
-              className={sel}
-            >
-              <option value="">No label</option>
-              {labels.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="shrink-0 text-lg"
-              onClick={onLabels}
-              title="Edit labels"
-              aria-label="Edit labels"
-            >
-              🏷️
-            </button>
-          </div>
         </Prop>
         <Prop label="Due date">
           <input
@@ -734,6 +719,68 @@ function TaskDialog({
             />
             <span className="font-semibold text-amber-900">📌 On this week’s agenda</span>
           </label>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <span className="mb-1.5 block text-xs font-semibold text-gray-500">Owners</span>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Owners">
+          {reps.map((r) => {
+            const on = t.assignees.includes(r.id)
+            return (
+              <button
+                key={r.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() =>
+                  onPatch({ assignees: on ? t.assignees.filter((x) => x !== r.id) : [...t.assignees, r.id] })
+                }
+                className={`flex items-center gap-1.5 rounded-full py-1 pr-3 pl-1 text-sm font-medium ${
+                  on
+                    ? 'bg-oxford-900 text-white'
+                    : 'bg-white text-oxford-900 ring-1 ring-gray-200 hover:ring-oxford-300'
+                }`}
+              >
+                {r.student ? (
+                  <Avatar name={r.student.full_name} url={r.student.photo_url} size={22} />
+                ) : (
+                  <span className="h-[22px] w-[22px] rounded-full bg-gray-200" />
+                )}
+                {r.student ? callName(r.student) : 'A rep'}
+                {on && <span aria-hidden>✓</span>}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-xs font-semibold text-gray-500">Labels</span>
+          <button type="button" className="text-xs font-semibold text-oxford-500 underline" onClick={onLabels}>
+            🏷️ Edit labels
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Labels">
+          {labels.map((l) => {
+            const on = t.label_ids.includes(l.id)
+            return (
+              <button
+                key={l.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() =>
+                  onPatch({ label_ids: on ? t.label_ids.filter((x) => x !== l.id) : [...t.label_ids, l.id] })
+                }
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${on ? 'text-white' : 'bg-white ring-1 ring-gray-200'}`}
+                style={on ? { background: l.color } : { color: l.color }}
+              >
+                {on ? '✓ ' : ''}
+                {l.name}
+              </button>
+            )
+          })}
+          {!labels.length && <span className="text-sm text-gray-400">No labels yet.</span>}
         </div>
       </div>
 
@@ -970,22 +1017,26 @@ function AgendaView({
         PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] ||
         (a.due_on ?? '9999').localeCompare(b.due_on ?? '9999'),
     )
-  const labelName = (id: string | null) => board.labels.find((l) => l.id === id)?.name ?? ''
-  const ownerName = (id: string | null) => byUser(id)?.full_name ?? 'Unassigned'
+  const labelsOf = (t: RepTask) => t.label_ids.flatMap((id) => board.labels.find((l) => l.id === id) ?? [])
+  const ownersOf = (t: RepTask) => t.assignees.flatMap((id) => byUser(id) ?? [])
   const title = `Reps agenda · ${fmtDay(day, { weekday: 'long', day: 'numeric', month: 'long' })}`
   const due = (d: string | null) => (d ? fmtDay(d, { day: 'numeric', month: 'short' }) : '')
   const subs = (t: RepTask) =>
     t.subtasks.length ? `${t.subtasks.filter((s) => s.done).length}/${t.subtasks.length}` : ''
 
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const head = ['#', 'Item', 'Owner', 'Status', 'Priority', 'Label', 'Due', 'Subtasks']
+  const head = ['#', 'Item', 'Owners', 'Status', 'Priority', 'Labels', 'Due', 'Subtasks']
   const cells = (t: RepTask, i: number) => [
     String(i + 1),
     t.title + (t.notes ? ` — ${t.notes.split('\n')[0]}` : ''),
-    ownerName(t.assignee),
+    ownersOf(t)
+      .map((o) => o.full_name)
+      .join(', ') || 'Unassigned',
     STATUS_LABEL[t.status],
     PRIORITY[t.priority].label,
-    labelName(t.label_id),
+    labelsOf(t)
+      .map((l) => l.name)
+      .join(', '),
     due(t.due_on),
     subs(t),
   ]
@@ -1064,8 +1115,8 @@ function AgendaView({
             </thead>
             <tbody>
               {rows.map((t, i) => {
-                const owner = byUser(t.assignee)
-                const label = board.labels.find((l) => l.id === t.label_id)
+                const owners = ownersOf(t)
+                const tLabels = labelsOf(t)
                 const p = PRIORITY[t.priority]
                 return (
                   <tr key={t.id} className="border-b border-gray-100 align-top">
@@ -1079,11 +1130,15 @@ function AgendaView({
                       </button>
                       {t.notes && <div className="line-clamp-2 text-xs text-gray-500">{t.notes}</div>}
                     </td>
-                    <td className="px-2 py-2 whitespace-nowrap">
-                      {owner ? (
-                        <span className="flex items-center gap-1.5">
-                          <Avatar name={owner.full_name} url={owner.photo_url} size={20} />
-                          {callName(owner)}
+                    <td className="px-2 py-2">
+                      {owners.length ? (
+                        <span className="flex flex-col gap-1">
+                          {owners.map((o) => (
+                            <span key={o.id} className="flex items-center gap-1.5 whitespace-nowrap">
+                              <Avatar name={o.full_name} url={o.photo_url} size={20} />
+                              {callName(o)}
+                            </span>
+                          ))}
                         </span>
                       ) : (
                         <span className="text-gray-400">Unassigned</span>
@@ -1096,14 +1151,11 @@ function AgendaView({
                       </span>
                     </td>
                     <td className="px-2 py-2">
-                      {label && (
-                        <span
-                          className="rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-white"
-                          style={{ background: label.color }}
-                        >
-                          {label.name}
-                        </span>
-                      )}
+                      <span className="flex flex-wrap gap-1">
+                        {tLabels.map((l) => (
+                          <LabelChip key={l.id} label={l} />
+                        ))}
+                      </span>
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap">{due(t.due_on)}</td>
                     <td className="px-2 py-2 whitespace-nowrap">{subs(t)}</td>
