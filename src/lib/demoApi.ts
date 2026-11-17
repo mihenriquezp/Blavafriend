@@ -11,6 +11,8 @@ import type {
   EngagementData,
   FormalSlot,
   Newsletter,
+  RepLabel,
+  RepTask,
   StudySession,
   Tool,
   Notice,
@@ -43,6 +45,7 @@ interface DemoState {
   coffee?: { auto: boolean; entries: Record<string, boolean>; rounds: Record<string, string[][]> }
   formals?: { slots: DemoFormal[]; bookings: { slot_id: string; guest: string }[] }
   study?: { sessions: DemoStudy[]; joins: DemoJoin[] }
+  reps?: { members: string[]; labels: RepLabel[]; tasks: RepTask[] }
 }
 /** extra / helper may be missing in demos saved before they existed. */
 type DemoStudy = Omit<StudySession, 'taken' | 'extra_taken' | 'mine' | 'joined' | 'my_role' | 'members' | 'helpers'>
@@ -209,6 +212,46 @@ export function createDemoApi(): Api {
 
   const coffee = () => (state.coffee ??= { auto: false, entries: {}, rounds: {} })
   // A few fictional study sessions by fictional classmates.
+  // The reps' planner: the demo user is a rep, with a few fictional tasks.
+  const reps = () =>
+    (state.reps ??= (() => {
+      const today = londonToday()
+      const others = state.students.filter((s) => s.user_id?.startsWith('demo-u-')).map((s) => s.user_id!)
+      const members = [DEMO_USER.id, ...others.slice(0, 3)]
+      const labels: RepLabel[] = [
+        { id: 'lb-1', name: 'Academic', color: '#1c5cab' },
+        { id: 'lb-2', name: 'Events', color: '#c9a227' },
+        { id: 'lb-3', name: 'Welfare', color: '#2a9d8f' },
+        { id: 'lb-4', name: 'Admin & logistics', color: '#6b7280' },
+      ]
+      const now = new Date().toISOString()
+      const rows: [string, RepTask['status'], number, string, RepTask['priority'], number | null, boolean, string[]][] = [
+        ['Feedback survey on the Economics problem sets', 'in_progress', 0, 'lb-1', 'high', 2, true, ['Draft questions', 'Share with the cohort']],
+        ['Christmas formal: book the venue', 'in_progress', 1, 'lb-2', 'urgent', 5, true, ['Get three quotes', 'Confirm numbers', 'Pay deposit']],
+        ['Ask for a quiet room during exam weeks', 'not_started', 0, 'lb-3', 'medium', 9, true, []],
+        ['Update the cohort WhatsApp rules', 'not_started', 1, 'lb-4', 'low', null, false, []],
+        ['Wellbeing check-in with the programme team', 'backlog', 0, 'lb-3', 'medium', null, true, []],
+        ['Alumni careers panel in Hilary term', 'backlog', 1, 'lb-2', 'low', null, false, ['Shortlist speakers']],
+        ['Collect module feedback for the review meeting', 'done', 0, 'lb-1', 'high', null, true, ['Send form', 'Summarise answers']],
+      ]
+      const tasks: RepTask[] = rows.map(([title, status, position, label_id, priority, due, on_agenda, subs], i) => ({
+        id: `rt-${i}`,
+        title,
+        status,
+        position,
+        assignee: members[i % members.length],
+        label_id,
+        priority,
+        due_on: due === null ? null : addDays(today, due),
+        on_agenda,
+        notes: i === 1 ? 'Budget up to £40 a head. Ask the MCR first.' : null,
+        created_at: now,
+        updated_at: now,
+        done_at: status === 'done' ? now : null,
+        subtasks: subs.map((t, j) => ({ id: `rs-${i}-${j}`, task_id: `rt-${i}`, title: t, done: status === 'done' || j === 0, position: j })),
+      }))
+      return { members, labels, tasks }
+    })())
   const study = () =>
     (state.study ??= (() => {
       const today = londonToday()
@@ -382,6 +425,92 @@ export function createDemoApi(): Api {
     },
     async isAdmin() {
       return true
+    },
+    async isRep() {
+      return reps().members.includes(DEMO_USER.id)
+    },
+    async repMembers() {
+      return clone(reps().members)
+    },
+    async adminSetRep(userId, on) {
+      const r = reps()
+      r.members = on ? [...new Set([...r.members, userId])] : r.members.filter((m) => m !== userId)
+      save()
+    },
+    async repBoard() {
+      const r = reps()
+      return clone({ tasks: [...r.tasks].sort((a, b) => a.position - b.position), labels: r.labels })
+    },
+    async saveRepTask(patch, id) {
+      const r = reps()
+      const now = new Date().toISOString()
+      let t = id ? r.tasks.find((x) => x.id === id) : undefined
+      if (id && !t) throw new Error('Task not found')
+      if (t) {
+        const wasDone = t.status === 'done'
+        Object.assign(t, patch, { updated_at: now })
+        t.done_at = t.status === 'done' ? (wasDone ? t.done_at : now) : null
+      } else {
+        t = {
+          id: crypto.randomUUID(),
+          title: '',
+          status: 'backlog',
+          position: 0,
+          assignee: null,
+          label_id: null,
+          priority: 'medium',
+          due_on: null,
+          on_agenda: true,
+          notes: null,
+          created_at: now,
+          updated_at: now,
+          done_at: null,
+          subtasks: [],
+          ...patch,
+        }
+        if (t.status === 'done') t.done_at = now
+        r.tasks.push(t)
+      }
+      save()
+      return clone(t)
+    },
+    async deleteRepTask(id) {
+      const r = reps()
+      r.tasks = r.tasks.filter((t) => t.id !== id)
+      save()
+    },
+    async saveRepLabel(input, id) {
+      const r = reps()
+      let l = id ? r.labels.find((x) => x.id === id) : undefined
+      if (l) Object.assign(l, input)
+      else r.labels.push((l = { id: crypto.randomUUID(), ...input }))
+      save()
+      return clone(l)
+    },
+    async deleteRepLabel(id) {
+      const r = reps()
+      r.labels = r.labels.filter((l) => l.id !== id)
+      for (const t of r.tasks) if (t.label_id === id) t.label_id = null
+      save()
+    },
+    async addRepSubtask(taskId, title, position) {
+      const t = reps().tasks.find((x) => x.id === taskId)
+      if (!t) throw new Error('Task not found')
+      const s = { id: crypto.randomUUID(), task_id: taskId, title, done: false, position }
+      t.subtasks.push(s)
+      save()
+      return clone(s)
+    },
+    async updateRepSubtask(id, patch) {
+      for (const t of reps().tasks) {
+        const s = t.subtasks.find((x) => x.id === id)
+        if (s) Object.assign(s, patch)
+      }
+      save()
+    },
+    async deleteRepSubtask(id) {
+      for (const t of reps().tasks) t.subtasks = t.subtasks.filter((x) => x.id !== id)
+      save()
     },
     async listStudents() {
       return clone(state.students).sort((a, b) => a.full_name.localeCompare(b.full_name))

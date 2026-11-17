@@ -1889,5 +1889,137 @@ begin
 end;
 $$;
 
+-------------------------------------------------------------------------------
+-- Student reps: who they are, and their planner (a Trello / Planner-style board)
+-------------------------------------------------------------------------------
+-- Admins choose which accounts are student reps. Only reps can see or change
+-- the planner: tasks in four columns, each with an owner, a label (the reps
+-- edit the labels), a priority, subtasks, notes and whether it's on the weekly
+-- agenda (on by default). Admins who aren't reps don't see the tasks.
+
+create table if not exists public.student_reps (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  added_at timestamptz not null default now()
+);
+alter table public.student_reps enable row level security;
+-- No policies: read through rep_members(), written through admin_set_rep().
+
+create or replace function public.is_rep()
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select public.is_member() and exists (select 1 from public.student_reps where user_id = auth.uid());
+$$;
+
+-- The reps' user ids, for the reps themselves (owners list) and for admins.
+create or replace function public.rep_members()
+returns jsonb
+language plpgsql stable security definer set search_path = public
+as $$
+begin
+  if not (public.is_rep() or public.is_admin()) then
+    raise exception 'Not allowed';
+  end if;
+  return coalesce((select jsonb_agg(user_id order by added_at) from public.student_reps), '[]'::jsonb);
+end;
+$$;
+
+create or replace function public.admin_set_rep(p_user uuid, p_on boolean)
+returns void
+language plpgsql volatile security definer set search_path = public
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Only admins can choose student reps';
+  end if;
+  if p_on then
+    insert into public.student_reps (user_id) values (p_user) on conflict do nothing;
+  else
+    delete from public.student_reps where user_id = p_user;
+  end if;
+end;
+$$;
+
+create table if not exists public.rep_labels (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (char_length(name) between 1 and 40),
+  color text not null default '#2f5d91' check (color ~ '^#[0-9a-fA-F]{6}$'),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.rep_tasks (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (char_length(title) between 1 and 200),
+  status text not null default 'backlog' check (status in ('backlog', 'not_started', 'in_progress', 'done')),
+  -- Order within a column (lower first).
+  position double precision not null default 0,
+  assignee uuid references auth.users (id) on delete set null,
+  label_id uuid references public.rep_labels (id) on delete set null,
+  priority text not null default 'medium' check (priority in ('urgent', 'high', 'medium', 'low')),
+  due_on date,
+  -- On this week's agenda (the Wednesday summary). Every task is, unless unticked.
+  on_agenda boolean not null default true,
+  notes text check (char_length(notes) <= 5000),
+  created_by uuid default auth.uid() references auth.users (id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  -- When it was last moved to Done (for "done this week" in the summary).
+  done_at timestamptz
+);
+create index if not exists rep_tasks_status on public.rep_tasks (status, position);
+
+create table if not exists public.rep_subtasks (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid not null references public.rep_tasks (id) on delete cascade,
+  title text not null check (char_length(title) between 1 and 200),
+  done boolean not null default false,
+  position double precision not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists rep_subtasks_task on public.rep_subtasks (task_id, position);
+
+create or replace function public.rep_tasks_stamp()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at := now();
+  if new.status = 'done' then
+    if tg_op = 'INSERT' or old.status <> 'done' then
+      new.done_at := now();
+    end if;
+  else
+    new.done_at := null;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists rep_tasks_stamp on public.rep_tasks;
+create trigger rep_tasks_stamp before insert or update on public.rep_tasks
+  for each row execute function public.rep_tasks_stamp();
+
+alter table public.rep_labels enable row level security;
+alter table public.rep_tasks enable row level security;
+alter table public.rep_subtasks enable row level security;
+
+drop policy if exists "reps use labels" on public.rep_labels;
+create policy "reps use labels" on public.rep_labels
+  for all using (public.is_rep()) with check (public.is_rep());
+
+drop policy if exists "reps use tasks" on public.rep_tasks;
+create policy "reps use tasks" on public.rep_tasks
+  for all using (public.is_rep()) with check (public.is_rep());
+
+drop policy if exists "reps use subtasks" on public.rep_subtasks;
+create policy "reps use subtasks" on public.rep_subtasks
+  for all using (public.is_rep()) with check (public.is_rep());
+
+-- A few starting labels, only on a brand-new planner.
+insert into public.rep_labels (name, color)
+select v.name, v.color
+from (values ('Academic', '#1c5cab'), ('Events', '#c9a227'), ('Welfare', '#2a9d8f'), ('Admin & logistics', '#6b7280')) v(name, color)
+where not exists (select 1 from public.rep_labels) and not exists (select 1 from public.rep_tasks);
+
 -- Make the API see new or changed functions right away.
 notify pgrst, 'reload schema';

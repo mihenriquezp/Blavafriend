@@ -4,6 +4,7 @@ import { ProfileForm } from '../components/ProfileForm'
 import { Avatar, Card, FacultyBadge, btnPrimary, inputCls } from '../components/ui'
 import { api } from '../lib/api'
 import { NewslettersAdmin } from '../components/NewslettersAdmin'
+import { RepsAdmin } from '../components/RepsAdmin'
 import { ToolsAdmin } from '../components/ToolsAdmin'
 import { UsagePanel } from '../components/UsagePanel'
 import { useStore } from '../lib/store'
@@ -45,6 +46,8 @@ export default function Admin() {
       <NewslettersAdmin />
 
       <ToolsAdmin />
+
+      <RepsAdmin />
 
       <Card>
         <form

@@ -18,6 +18,9 @@ import type {
   Student,
   EngagementData,
   FormalSlot,
+  RepLabel,
+  RepSubtask,
+  RepTask,
   StudySession,
   Tool,
   ToolStats,
@@ -66,6 +69,54 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       await sb.auth.signOut()
     },
 
+    async isRep() {
+      return check(await sb.rpc('is_rep')) === true
+    },
+    async repMembers() {
+      return (check(await sb.rpc('rep_members')) as string[]) ?? []
+    },
+    async adminSetRep(userId, on) {
+      check(await sb.rpc('admin_set_rep', { p_user: userId, p_on: on }))
+    },
+    async repBoard() {
+      const [tasks, labels] = await Promise.all([
+        sb.from('rep_tasks').select('*, subtasks:rep_subtasks(*)').order('position'),
+        sb.from('rep_labels').select('id, name, color').order('created_at'),
+      ])
+      return {
+        tasks: (check(tasks) as RepTask[]).map((t) => ({
+          ...t,
+          subtasks: [...(t.subtasks ?? [])].sort((a, b) => a.position - b.position),
+        })),
+        labels: check(labels) as RepLabel[],
+      }
+    },
+    async saveRepTask(patch, id) {
+      const q = id ? sb.from('rep_tasks').update(patch).eq('id', id) : sb.from('rep_tasks').insert(patch)
+      const t = check(await q.select('*, subtasks:rep_subtasks(*)').single()) as RepTask
+      return { ...t, subtasks: [...(t.subtasks ?? [])].sort((a, b) => a.position - b.position) }
+    },
+    async deleteRepTask(id) {
+      check(await sb.from('rep_tasks').delete().eq('id', id))
+    },
+    async saveRepLabel(input, id) {
+      const q = id ? sb.from('rep_labels').update(input).eq('id', id) : sb.from('rep_labels').insert(input)
+      return check(await q.select('id, name, color').single()) as RepLabel
+    },
+    async deleteRepLabel(id) {
+      check(await sb.from('rep_labels').delete().eq('id', id))
+    },
+    async addRepSubtask(taskId, title, position) {
+      return check(
+        await sb.from('rep_subtasks').insert({ task_id: taskId, title, position }).select().single(),
+      ) as RepSubtask
+    },
+    async updateRepSubtask(id, patch) {
+      check(await sb.from('rep_subtasks').update(patch).eq('id', id))
+    },
+    async deleteRepSubtask(id) {
+      check(await sb.from('rep_subtasks').delete().eq('id', id))
+    },
     async isAdmin() {
       return check(await sb.rpc('is_admin')) === true
     },
