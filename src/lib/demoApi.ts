@@ -213,8 +213,8 @@ export function createDemoApi(): Api {
   const coffee = () => (state.coffee ??= { auto: false, entries: {}, rounds: {} })
   // A few fictional study sessions by fictional classmates.
   // The reps' planner: the demo user is a rep, with a few fictional tasks.
-  const reps = () =>
-    (state.reps ??= (() => {
+  const reps = () => {
+    const r = (state.reps ??= (() => {
       const today = londonToday()
       const others = state.students.filter((s) => s.user_id?.startsWith('demo-u-')).map((s) => s.user_id!)
       const members = [DEMO_USER.id, ...others.slice(0, 3)]
@@ -239,8 +239,8 @@ export function createDemoApi(): Api {
         title,
         status,
         position,
-        assignee: members[i % members.length],
-        label_id,
+        assignees: i === 1 ? [members[1], members[0]] : [members[i % members.length]],
+        label_ids: i === 0 ? [label_id, 'lb-3'] : [label_id],
         priority,
         due_on: due === null ? null : addDays(today, due),
         on_agenda,
@@ -252,6 +252,13 @@ export function createDemoApi(): Api {
       }))
       return { members, labels, tasks }
     })())
+    // Demos saved when a task had one owner and one label.
+    for (const t of r.tasks as (RepTask & { assignee?: string | null; label_id?: string | null })[]) {
+      if (!Array.isArray(t.assignees)) t.assignees = t.assignee ? [t.assignee] : []
+      if (!Array.isArray(t.label_ids)) t.label_ids = t.label_id ? [t.label_id] : []
+    }
+    return r
+  }
   const study = () =>
     (state.study ??= (() => {
       const today = londonToday()
@@ -456,8 +463,8 @@ export function createDemoApi(): Api {
           title: '',
           status: 'backlog',
           position: 0,
-          assignee: null,
-          label_id: null,
+          assignees: [],
+          label_ids: [],
           priority: 'medium',
           due_on: null,
           on_agenda: true,
@@ -490,7 +497,7 @@ export function createDemoApi(): Api {
     async deleteRepLabel(id) {
       const r = reps()
       r.labels = r.labels.filter((l) => l.id !== id)
-      for (const t of r.tasks) if (t.label_id === id) t.label_id = null
+      for (const t of r.tasks) t.label_ids = t.label_ids.filter((l) => l !== id)
       save()
     },
     async addRepSubtask(taskId, title, position) {

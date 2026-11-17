@@ -251,9 +251,9 @@ export interface RepTask {
   status: RepStatus
   /** Order within its column (lower first). */
   position: number
-  /** Owner's user id (one of the reps). */
-  assignee: string | null
-  label_id: string | null
+  /** Owners' user ids (reps); can be several, or none. */
+  assignees: string[]
+  label_ids: string[]
   priority: RepPriority
   due_on: string | null
   /** On this week's agenda (the Wednesday summary); on by default. */
@@ -266,7 +266,7 @@ export interface RepTask {
   subtasks: RepSubtask[]
 }
 export type RepTaskPatch = Partial<
-  Pick<RepTask, 'title' | 'status' | 'position' | 'assignee' | 'label_id' | 'priority' | 'due_on' | 'on_agenda' | 'notes'>
+  Pick<RepTask, 'title' | 'status' | 'position' | 'assignees' | 'label_ids' | 'priority' | 'due_on' | 'on_agenda' | 'notes'>
 >
 
 /** A study session between classmates (see public.study_board). */

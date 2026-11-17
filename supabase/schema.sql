@@ -1953,8 +1953,9 @@ create table if not exists public.rep_tasks (
   status text not null default 'backlog' check (status in ('backlog', 'not_started', 'in_progress', 'done')),
   -- Order within a column (lower first).
   position double precision not null default 0,
-  assignee uuid references auth.users (id) on delete set null,
-  label_id uuid references public.rep_labels (id) on delete set null,
+  -- Owners (reps' user ids) and labels: a task can have several of each.
+  assignees uuid[] not null default '{}',
+  label_ids uuid[] not null default '{}',
   priority text not null default 'medium' check (priority in ('urgent', 'high', 'medium', 'low')),
   due_on date,
   -- On this week's agenda (the Wednesday summary). Every task is, unless unticked.
@@ -1967,6 +1968,21 @@ create table if not exists public.rep_tasks (
   done_at timestamptz
 );
 create index if not exists rep_tasks_status on public.rep_tasks (status, position);
+
+-- Planners created when a task had one owner and one label: move them into the
+-- lists, then drop the old columns.
+alter table public.rep_tasks add column if not exists assignees uuid[] not null default '{}';
+alter table public.rep_tasks add column if not exists label_ids uuid[] not null default '{}';
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'rep_tasks' and column_name = 'assignee') then
+    update public.rep_tasks set assignees = array[assignee] where assignee is not null and assignees = '{}';
+    update public.rep_tasks set label_ids = array[label_id] where label_id is not null and label_ids = '{}';
+    alter table public.rep_tasks drop column assignee, drop column label_id;
+  end if;
+end;
+$$;
 
 create table if not exists public.rep_subtasks (
   id uuid primary key default gen_random_uuid(),
@@ -1994,6 +2010,21 @@ begin
   return new;
 end;
 $$;
+
+-- A deleted label disappears from the tasks that had it.
+create or replace function public.rep_labels_forget()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  update public.rep_tasks set label_ids = array_remove(label_ids, old.id) where old.id = any (label_ids);
+  return old;
+end;
+$$;
+
+drop trigger if exists rep_labels_forget on public.rep_labels;
+create trigger rep_labels_forget after delete on public.rep_labels
+  for each row execute function public.rep_labels_forget();
 
 drop trigger if exists rep_tasks_stamp on public.rep_tasks;
 create trigger rep_tasks_stamp before insert or update on public.rep_tasks
