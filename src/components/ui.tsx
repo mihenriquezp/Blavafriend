@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { COUNTRIES, COUNTRY_CODE, LEVELS, type Level } from '../lib/options'
+import { COUNTRIES, COUNTRY_CODE, LEVELS, RELATIONSHIP_OPTIONS, type Level, type RelationshipStatus } from '../lib/options'
 
 export function Avatar({ name, url, size = 48 }: { name: string; url?: string | null; size?: number }) {
   const initials = name
@@ -406,6 +406,20 @@ export function CountryPicker({
         Cancel
       </button>
     </div>
+  )
+}
+
+/** Relationship status as a small pill (nothing when it isn't shared). */
+export function RelationshipTag({ status, className = '' }: { status: RelationshipStatus | null; className?: string }) {
+  const o = RELATIONSHIP_OPTIONS.find((r) => r.value === status)
+  if (!o) return null
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-900 ${className}`}
+    >
+      <span aria-hidden>{o.emoji}</span>
+      {o.label}
+    </span>
   )
 }
 

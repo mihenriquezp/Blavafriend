@@ -21,6 +21,16 @@ export const FAMILY_OPTIONS = [
 
 export type FamilyStatus = (typeof FAMILY_OPTIONS)[number]['value']
 
+/** Relationship status: optional, empty means not shared (the default). */
+export const RELATIONSHIP_OPTIONS = [
+  { value: 'married', label: 'Married', emoji: '💍' },
+  { value: 'partner', label: 'In a relationship', emoji: '❤️' },
+  { value: 'open', label: 'Open relationship', emoji: '🔓' },
+  { value: 'single', label: 'Single', emoji: '🦋' },
+] as const
+
+export type RelationshipStatus = (typeof RELATIONSHIP_OPTIONS)[number]['value']
+
 export const ROLE_OPTIONS = [
   { value: 'student', label: 'Student' },
   { value: 'faculty', label: 'Faculty / Staff' },

@@ -111,6 +111,9 @@ alter table public.students add column if not exists role text not null default 
 alter table public.students add column if not exists birth_day smallint check (birth_day between 1 and 31);
 alter table public.students add column if not exists birth_month smallint check (birth_month between 1 and 12);
 alter table public.students add column if not exists birth_year smallint check (birth_year between 1930 and 2015);
+-- Relationship status, shown on the profile and in People. Empty = not shared (the default).
+alter table public.students add column if not exists relationship text
+  check (relationship in ('married', 'partner', 'open', 'single'));
 
 alter table public.students enable row level security;
 
