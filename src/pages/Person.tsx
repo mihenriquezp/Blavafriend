@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Avatar, Card, Chip, CountryLabel, FacultyBadge, LevelPicker, StarButton, btnPrimary } from '../components/ui'
+import { Avatar, Card, Chip, CountryLabel, FacultyBadge, LevelPicker, RelationshipTag, StarButton, btnPrimary } from '../components/ui'
 import { FAMILY_OPTIONS, GENDER_OPTIONS, LEVELS, continentOf, type Level } from '../lib/options'
 import { formatBirthday } from '../lib/birthdays'
 import { callName } from '../lib/names'
@@ -108,6 +108,7 @@ export default function Person() {
           />
           <Info label="Lives in" value={s.country_residence && <CountryLabel country={s.country_residence} />} />
           <Info label="Coming" value={family} />
+          <Info label="Status" value={s.relationship && <RelationshipTag status={s.relationship} className="!text-xs" />} />
           <Info label="Speaks" value={s.languages.join(', ')} />
           <Info label="Gender" value={gender} />
           <Info label="Birthday" value={formatBirthday(s) && `🎂 ${formatBirthday(s)}`} />

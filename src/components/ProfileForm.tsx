@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
 import { resizeImage } from '../lib/image'
-import { COLLEGES, FAMILY_OPTIONS, GENDER_OPTIONS, HOBBY_GROUPS, POLICY_INTERESTS, ROLE_OPTIONS } from '../lib/options'
+import { COLLEGES, FAMILY_OPTIONS, GENDER_OPTIONS, HOBBY_GROUPS, POLICY_INTERESTS, RELATIONSHIP_OPTIONS, ROLE_OPTIONS } from '../lib/options'
 import { MONTHS, daysInMonth } from '../lib/birthdays'
 import { useStore } from '../lib/store'
 import type { Student, StudentPatch } from '../lib/types'
@@ -32,6 +32,7 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
         job_title: draft.job_title?.trim() || null,
         college: draft.college,
         family_status: draft.family_status,
+        relationship: draft.relationship ?? null,
         policy_interests: draft.policy_interests,
         hobbies: draft.hobbies,
         languages: draft.languages,
@@ -223,6 +224,20 @@ export function ProfileForm({ student, onDone }: { student: Student; onDone?: ()
             {FAMILY_OPTIONS.map((f) => (
               <option key={f.value} value={f.value}>
                 {f.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Relationship status (optional)">
+          <select
+            value={draft.relationship ?? ''}
+            onChange={(e) => set('relationship', (e.target.value || null) as Student['relationship'])}
+            className={inputCls}
+          >
+            <option value="">🤐 No info (not shown)</option>
+            {RELATIONSHIP_OPTIONS.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.emoji} {r.label}
               </option>
             ))}
           </select>

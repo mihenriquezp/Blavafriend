@@ -1,4 +1,4 @@
-import type { FamilyStatus, Gender, Level } from './options'
+import type { FamilyStatus, Gender, Level, RelationshipStatus } from './options'
 
 export interface Student {
   id: string
@@ -9,6 +9,8 @@ export interface Student {
   job_title: string | null
   college: string | null
   family_status: FamilyStatus | null
+  /** Married / in a relationship / open / single; null = not shared. */
+  relationship: RelationshipStatus | null
   policy_interests: string[]
   hobbies: string[]
   languages: string[]

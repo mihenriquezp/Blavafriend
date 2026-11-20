@@ -100,6 +100,8 @@ function seed(): DemoState {
       job_title: i >= FIRST.length - 3 ? 'Professor of Public Policy' : pick(ROLES),
       college: pick(COLLEGES),
       family_status: r() < 0.75 ? 'none' : pick(['partner', 'family', 'partner_family'] as const),
+      // Fictional; about half share it.
+      relationship: (['single', null, 'partner', null, 'married', 'single', null, 'open', null, 'partner'] as const)[i % 10],
       policy_interests: some(POLICY_INTERESTS, 1, 3),
       hobbies: some(HOBBIES, 2, 5),
       languages: ['English', ...some(LANGUAGES, 0, 2)].filter((v, j, a) => a.indexOf(v) === j),
@@ -179,7 +181,7 @@ function seed(): DemoState {
 function blankStudent(full_name: string, user_id: string | null): Student {
   return {
     id: `demo-${crypto.randomUUID()}`, full_name, user_id, age: null, country_origin: null,
-    country_residence: null, job_title: null, college: null, family_status: null,
+    country_residence: null, job_title: null, college: null, family_status: null, relationship: null,
     policy_interests: [], hobbies: [], languages: [], bio: null, photo_url: null, linkedin: null,
     instagram: null, x_handle: null, whatsapp: null, nickname: null, gender: null, undergrad_fields: [], role: 'student',
     birth_day: null, birth_month: null, birth_year: null,

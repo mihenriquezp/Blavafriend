@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Avatar, Chip, CountryLabel, FacultyBadge, LevelBadge, LevelPicker, StarButton, inputCls } from '../components/ui'
-import { CONTINENTS, COUNTRIES, FAMILY_OPTIONS, GENDER_OPTIONS, LEVELS, POLICY_INTERESTS, continentOf, type Level } from '../lib/options'
+import { Avatar, Chip, CountryLabel, FacultyBadge, LevelBadge, LevelPicker, RelationshipTag, StarButton, inputCls } from '../components/ui'
+import { CONTINENTS, COUNTRIES, FAMILY_OPTIONS, GENDER_OPTIONS, LEVELS, POLICY_INTERESTS, RELATIONSHIP_OPTIONS, continentOf, type Level } from '../lib/options'
 import { useStore } from '../lib/store'
 import type { Student } from '../lib/types'
 
@@ -45,7 +45,7 @@ function matchesText(s: Student, q: string) {
 type Sort = 'name' | 'level-asc' | 'level-desc' | 'recent'
 
 const MULTI_KEYS = ['policy', 'hobby', 'lang', 'degree', 'level'] as const
-const SINGLE_KEYS = ['country', 'residence', 'continent', 'college', 'family', 'gender'] as const
+const SINGLE_KEYS = ['country', 'residence', 'continent', 'college', 'family', 'gender', 'status'] as const
 
 type Who = 'students' | 'faculty' | 'all'
 const VIEWS: { to: string; label: string; who: Who | 'wishlist' }[] = [
@@ -119,6 +119,7 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
       if (single('college') && s.college !== single('college')) return false
       if (single('family') && s.family_status !== single('family')) return false
       if (single('gender') && s.gender !== single('gender')) return false
+      if (single('status') && s.relationship !== single('status')) return false
       if (degrees.length && !degrees.some((d) => s.undergrad_fields.includes(d))) return false
       if (policies.length && !policies.some((p) => s.policy_interests.includes(p))) return false
       if (hobbies.length && !hobbies.some((h) => s.hobbies.includes(h))) return false
@@ -226,6 +227,13 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
               labels={Object.fromEntries(GENDER_OPTIONS.map((g) => [g.value, g.label]))}
               onChange={(v) => setSingle('gender', v)}
             />
+            <Select
+              label="Relationship status"
+              value={single('status')}
+              options={RELATIONSHIP_OPTIONS.map((r) => r.value)}
+              labels={Object.fromEntries(RELATIONSHIP_OPTIONS.map((r) => [r.value, `${r.emoji} ${r.label}`]))}
+              onChange={(v) => setSingle('status', v)}
+            />
           </div>
           <ChipFilter
             label="How well you know them"
@@ -284,6 +292,7 @@ export default function People({ wishlist = false }: { wishlist?: boolean }) {
                   </div>
                   <div className="truncate text-xs text-gray-400">
                     <FacultyBadge role={s.role} className="mr-1.5" />
+                    <RelationshipTag status={s.relationship} className="mr-1.5" />
                     {s.job_title}
                   </div>
                 </div>
